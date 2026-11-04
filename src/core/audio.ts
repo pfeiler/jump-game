@@ -85,6 +85,12 @@ export class Sfx {
     this.noise(0.9, 0.6, 500, 0.12);
     this.tone(48, 0.7, 'sine', 0.35, 0.12, 30);
   }
+  /** time bonus: bright rising chime + soft sparkle (≈0.35 s) */
+  timeBonus(): void {
+    [1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.14, 'sine', 0.16, i * 0.06));
+    this.tone(2093, 0.25, 'triangle', 0.1, 0.18);
+    this.noise(0.12, 0.08, 7000, 0.18, 'highpass');
+  }
   pauseIn(): void { [784, 659, 523].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.12, i * 0.08)); }
   armsTick(): void { this.tone(880, 0.05, 'square', 0.06); }
   power(): void { this.tone(300, 0.35, 'sawtooth', 0.15, 0, 1200); this.tone(600, 0.3, 'square', 0.08, 0.1, 1800); }

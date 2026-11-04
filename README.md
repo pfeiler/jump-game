@@ -61,8 +61,11 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 * Erde (1 Schlag), Stein (2), Hartgestein (3) – mit sichtbaren Rissen.
 * Edelsteine werden mit der Tiefe wertvoller.
 * Bomben räumen den Radius 1 frei und lösen Kettenreaktionen aus.
+* **Zeit-Blöcke** ⏱ (türkis mit Stoppuhr): **+5 s** auf den Countdown – 2 pro Level (ab Level 3: 3), über die Tiefe verteilt.
+  Zählen auch, wenn TNT, Bohrer oder ein Einsturz sie erwischt. Animation (< 1 s): Funken, Stoppuhr fliegt zum Timer,
+  Timer blinkt grün und pulsiert, Ring + „+5 s“, Glockenspiel-Sound. Im 2-Spieler-Modus teilen sich beide den Timer.
 * Power-ups: **Bohrer** (ganze Spalte), **Hammer** (8 s lang jeder Schlag zählt doppelt), **Magnet** (sammelt alle sichtbaren Edelsteine).
-* Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, aufquellende Rauch-/Staubwolken,
+* Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, kurze, halbtransparente Rauch-/Staubwolke – nach ≤ 1 s weg, damit die Sicht frei bleibt,
   Bildschirmwackeln, „BUMM!“); **Bohrer** = Blitze schlagen links und rechts ein (gezackt, weiß/blau, Bildschirm-Flackern,
   Funken am Einschlag). Rauch/Feuer sind wenige weiche Sprites (max. 140 gleichzeitig), keine Physik – die Pose-Erkennung behält ihr Budget.
 * Ausgangsfeld ⬇ → **Pause** mit Level-Ergebnis und Vorschau aufs nächste, tiefere Zufallslevel (+ Level-Bonus).
@@ -197,11 +200,12 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – 65 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
+* `npm test` – 72 vitest-Tests (Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
   Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
+* `node scripts/timeshots.mjs` – kurzer TNT-Rauch + Zeit-Block-Animation, Timer in der Pause eingefroren (Screenshots 21–22; `PLAYERS=2` für 2 Spieler).
 * `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.
 * `node scripts/hopcam.mjs` – kleine Hüpfer mit künstlicher Kamera (`Y4M=…`), zählt erkannte Landungen. Video z. B. per ffmpeg:
   Foto auf Wurfparabeln bewegen (9,6 cm Hüpfhöhe = 0,28 s Flug, alle 0,5 s).

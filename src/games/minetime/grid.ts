@@ -6,6 +6,7 @@
  *    column the player stands in, a high jump hits twice.
  *  - dirt 1 hit, stone 2, hard rock 3, gems (points scale with depth/level),
  *    bomb (clears 1-tile radius, chains), power-ups: drill, hammer, magnet.
+ *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
  *  - an exit tile sits in the bottom row; uncovering it finishes the level.
  *  - score only ever goes up (gems + break points × combo, level bonus).
  */
@@ -15,8 +16,12 @@ export const COLS = 6;
 export const VISIBLE_ROWS = 8;
 export const HAMMER_DURATION = 8;
 export const COMBO_WINDOW = 1.6;
+/** seconds a time block adds to the countdown */
+export const TIME_BONUS = 5;
+/** time blocks per level: 2 in the first two levels, 3 from level 3 (deeper levels take longer) */
+export const timeBlocksFor = (level: number): number => (level >= 3 ? 3 : 2);
 
-export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hammer' | 'magnet' | 'exit';
+export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hammer' | 'magnet' | 'clock' | 'exit';
 export type PowerKind = 'drill' | 'hammer' | 'magnet';
 export type Cause = 'hit' | 'bomb' | 'drill' | 'magnet' | 'cavein';
 
@@ -37,11 +42,12 @@ export type MineEvent =
   | { type: 'powerup'; kind: PowerKind; col: number; row: number }
   | { type: 'combo'; combo: number; multiplier: number }
   | { type: 'empty'; col: number }
+  | { type: 'time'; col: number; row: number; seconds: number; cause: Cause }
   | { type: 'cavein'; row: number }
   | { type: 'exitReached'; col: number; row: number };
 
 const BREAK_POINTS: Record<BlockKind, number> = {
-  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hammer: 5, magnet: 5, exit: 0,
+  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hammer: 5, magnet: 5, clock: 5, exit: 0,
 };
 const GEM_BASE = [10, 20, 35, 60];
 
@@ -70,6 +76,9 @@ export class MineGrid {
   exitReached = false;
   gems = 0;
   blocksBroken = 0;
+  /** time blocks collected / seconds won (whole game) */
+  clocks = 0;
+  timeBonus = 0;
   /** total rows dug through in previous levels (for the depth display) */
   depthOffset = 0;
   private rng: () => number;
@@ -131,6 +140,20 @@ export class MineGrid {
         line.push(makeBlock('dirt'));
       }
       this.cells.push(line);
+    }
+    this.placeClocks(timeBlocksFor(level));
+  }
+
+  /** Spreads `n` time blocks over the depth of the level (one per depth band, never row 0 or the exit row). */
+  private placeClocks(n: number): void {
+    const r = this.rng;
+    const first = 1, last = this.exitRow - 1; // rows that may hold a clock
+    const span = last - first + 1;
+    for (let i = 0; i < n; i++) {
+      const lo = first + Math.floor((i * span) / n), hi = first + Math.floor(((i + 1) * span) / n) - 1;
+      const row = lo + Math.floor(r() * (hi - lo + 1));
+      const col = Math.floor(r() * COLS);
+      this.cells[row][col] = makeBlock('clock');
     }
   }
 
@@ -203,6 +226,13 @@ export class MineGrid {
       }
       const points = this.award(BREAK_POINTS[b.kind]);
       ev.push({ type: 'break', col: c, row: r, block: b, points, cause: why });
+      if (b.kind === 'clock') {
+        // time is always credited – also when a bomb, drill or cave-in takes the block
+        this.clocks++;
+        this.timeBonus += TIME_BONUS;
+        ev.push({ type: 'time', col: c, row: r, seconds: TIME_BONUS, cause: why });
+        continue;
+      }
       if (why === 'cavein') continue; // collapsing rows don't trigger effects
       switch (b.kind) {
         case 'bomb':

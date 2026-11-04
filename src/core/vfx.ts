@@ -4,6 +4,8 @@
  * Everything is pooled sprites/graphics with a hard cap so pose tracking keeps its CPU budget.
  */
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { SMOKE, smokeAlpha } from './smoke';
+export { SMOKE, smokeAlpha, smokeMaxDuration } from './smoke';
 
 let puffTex: Texture | null = null;
 /** soft round blob (radial gradient) used for fire and smoke puffs */
@@ -26,7 +28,7 @@ function puffTexture(): Texture {
 interface Puff {
   s: Sprite; vx: number; vy: number; life: number; max: number;
   s0: number; s1: number; a0: number; drag: number; rise: number;
-  c0: number; c1: number; delay: number; spin: number;
+  c0: number; c1: number; delay: number; spin: number; smoke: boolean;
 }
 interface Fx { t: number; dur: number; fn: (k: number) => void; done?: () => void; delay: number }
 
@@ -65,7 +67,7 @@ export class Vfx {
     this.flashA = Math.max(this.flashA, alpha);
   }
 
-  private puff(x: number, y: number, o: Partial<Omit<Puff, 's'>> & { size: number; add?: boolean }): void {
+  private puff(x: number, y: number, o: Partial<Omit<Puff, 's' | 'smoke'>> & { size: number; add?: boolean; smoke?: boolean }): void {
     if (this.puffs.length >= this.maxPuffs) {
       const old = this.puffs.shift()!;
       old.s.destroy();
@@ -80,6 +82,7 @@ export class Vfx {
       s, vx: o.vx ?? 0, vy: o.vy ?? 0, life: o.max ?? 1, max: o.max ?? 1,
       s0: o.size / 128, s1: (o.s1 ?? o.size * 2) / 128, a0: o.a0 ?? 1, drag: o.drag ?? 2, rise: o.rise ?? 0,
       c0: o.c0 ?? 0xffffff, c1: o.c1 ?? o.c0 ?? 0xffffff, delay: o.delay ?? 0, spin: (Math.random() - 0.5) * 2,
+      smoke: !!o.smoke,
     };
     s.scale.set(p.s0);
     s.tint = p.c0;
@@ -100,18 +103,20 @@ export class Vfx {
       const a = Math.random() * Math.PI * 2, v = (90 + Math.random() * 220) * P;
       this.puff(x, y, {
         vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.8 - 60, size: (80 + Math.random() * 70) * P, s1: (210 + Math.random() * 150) * P,
-        max: 0.7 + Math.random() * 0.5, a0: 1, c0: 0xffe9a0, c1: 0xff3d00, add: true, drag: 4, rise: -120,
+        max: 0.55 + Math.random() * 0.4, a0: 1, c0: 0xffe9a0, c1: 0xff3d00, add: true, drag: 4, rise: -120,
       });
     }
-    // billowing smoke / dust (starts a little later, grows, drifts up, lingers)
-    const nSmoke = Math.round(26 * P);
+    // quick smoke / dust puff (short and see-through, so the playfield stays visible)
+    const nSmoke = Math.round(SMOKE.count * P);
     for (let i = 0; i < nSmoke; i++) {
-      const a = Math.random() * Math.PI * 2, v = (60 + Math.random() * 220) * P;
+      const a = Math.random() * Math.PI * 2, v = (60 + Math.random() * 200) * P;
       const dusty = Math.random() < 0.45;
       this.puff(x + Math.cos(a) * 20, y + Math.sin(a) * 20, {
-        vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6 - 30, size: (80 + Math.random() * 70) * P, s1: (280 + Math.random() * 220) * P,
-        max: 1.8 + Math.random() * 1.4, a0: 0.9, c0: dusty ? 0x9a7650 : 0x6a6470, c1: dusty ? 0x3a2c22 : 0x26232b,
-        drag: 2.2, rise: -70 - Math.random() * 60, delay: 0.03 + Math.random() * 0.25,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6 - 30, size: (70 + Math.random() * 50) * P,
+        s1: (SMOKE.sizeMin + Math.random() * (SMOKE.sizeMax - SMOKE.sizeMin)) * P,
+        max: SMOKE.lifeMin + Math.random() * (SMOKE.lifeMax - SMOKE.lifeMin), a0: SMOKE.alpha,
+        c0: dusty ? 0x9a7650 : 0x6a6470, c1: dusty ? 0x3a2c22 : 0x26232b,
+        drag: 2.6, rise: -90 - Math.random() * 60, delay: Math.random() * SMOKE.delayMax, smoke: true,
       });
     }
     // shockwave rings
@@ -213,7 +218,7 @@ export class Vfx {
       p.s.rotation += p.spin * dt;
       p.s.scale.set(p.s0 + (p.s1 - p.s0) * (1 - Math.pow(1 - k, 2)));
       p.s.tint = lerpColor(p.c0, p.c1, Math.min(1, k * 1.6));
-      p.s.alpha = p.a0 * (k < 0.08 ? k / 0.08 : 1 - Math.pow((k - 0.08) / 0.92, 1.6));
+      p.s.alpha = p.a0 * (p.smoke ? smokeAlpha(k) : k < 0.08 ? k / 0.08 : 1 - Math.pow((k - 0.08) / 0.92, 1.6));
     }
     // flash: decays fast; draws a full-screen rect only while visible
     this.flashA *= Math.exp(-dt * 9);

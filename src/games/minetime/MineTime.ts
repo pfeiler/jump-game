@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import type { GameContext, GameModule } from '../types';
 import { W, H } from '../types';
 import { MineGrid, COLS, VISIBLE_ROWS, type MineEvent, type Block, HAMMER_DURATION } from './grid';
-import { drawBlock, drawGem, GEM_COLORS, KIND_COLORS } from './draw';
+import { drawBlock, drawClock, drawGem, GEM_COLORS, KIND_COLORS } from './draw';
 import { ParticleSystem } from '../../core/particles';
 import { Tweens, floatText, label, easeOutBack, easeOutCubic } from '../../core/fx';
 import { Vfx } from '../../core/vfx';
@@ -56,6 +56,10 @@ export class MineTime implements GameModule {
     hold: ArmsUpHold; still: StillnessCheck[]; ring: Graphics; status: Text; t: number; closing: boolean; camera: boolean;
     onKey: (e: KeyboardEvent) => void; level: number;
   } | null = null;
+  /** seconds already added to timeLeft but not yet shown (clock icon still flying to the timer) */
+  private timeInFlight = 0;
+  /** 1 → 0: green flash/pulse of the timer after a time bonus */
+  private timeFlash = 0;
   private gemsAtLevelStart = 0;
   private scoreAtLevelStart = 0;
 
@@ -210,10 +214,57 @@ export class MineTime implements GameModule {
     });
   }
 
+  /**
+   * Time block collected: sparkles at the block, a stopwatch flies to the timer (0.45 s),
+   * then the timer flashes green and pulses, "+5 s" pops up next to it (0.5 s). Total < 1 s.
+   * The seconds are credited immediately (so the clock can't run out mid-flight); only the display waits.
+   */
+  private timeBonusFx(x: number, y: number, seconds: number, delay: number): void {
+    this.timeInFlight += seconds;
+    this.particles.burst(x, y, 0x7dffa8, 12, { shape: 'spark', speed: 9, size: 7, life: 0.55, up: 5 });
+    this.particles.burst(x, y, 0xffffff, 6, { shape: 'spark', speed: 6, size: 5, life: 0.45 });
+    const icon = new Graphics();
+    drawClock(icon, 0, 0, 20, false);
+    icon.position.set(x, y);
+    icon.scale.set(0);
+    this.hud.addChild(icon); // above the HUD background so it stays visible up to the timer
+    const tx = this.timeText.x, ty = this.timeText.y;
+    const fly = 0.45, total = fly + delay;
+    this.tw.add(total, (kk) => {
+      const k = Math.max(0, (kk * total - delay) / fly);
+      const e = easeOutCubic(k);
+      // curve sideways (not upwards – the timer sits at the top edge)
+      const side = x < tx ? -1 : 1;
+      icon.position.set(x + (tx - x) * e + side * Math.sin(k * Math.PI) * 110, y + (ty - y) * e);
+      icon.scale.set(k < 0.2 ? easeOutBack(k / 0.2) * 1.5 : 1.5 - (k - 0.2) * 0.9);
+      icon.rotation = Math.sin(k * Math.PI * 2) * 0.35;
+    }, () => {
+      icon.destroy();
+      if (this.destroyed) return;
+      this.timeInFlight = Math.max(0, this.timeInFlight - seconds);
+      this.timeFlash = 1;
+      this.ctx.sfx.timeBonus();
+      this.particles.burst(tx, ty, 0x7dffa8, 10, { shape: 'spark', speed: 8, size: 6, life: 0.45 });
+      this.particles.burst(tx, ty, 0xfff7a8, 5, { shape: 'spark', speed: 5, size: 5, life: 0.4 });
+      const ring = new Graphics();
+      ring.position.set(tx, ty);
+      const pop = label(`+${seconds} s`, 40, 0x7dffa8);
+      pop.position.set(tx + 120, ty);
+      this.hud.addChild(ring, pop);
+      this.tw.add(0.5, (k) => {
+        ring.clear().circle(0, 0, 40 + 70 * easeOutCubic(k)).stroke({ width: 8 * (1 - k) + 1, color: 0x7dffa8, alpha: 0.9 * (1 - k) });
+        pop.y = ty - 26 * easeOutCubic(k);
+        pop.scale.set(k < 0.25 ? 0.4 + easeOutBack(k / 0.25) * 0.8 : 1.2 - (k - 0.25) * 0.3);
+        pop.alpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      }, () => { ring.destroy(); pop.destroy(); });
+    });
+  }
+
   private onEvents(ev: MineEvent[], player: number): void {
     const sfx = this.ctx.sfx;
     let breaks = 0;
     let bombs = 0;
+    let clocks = 0;
     for (const e of ev) {
       switch (e.type) {
         case 'damage': {
@@ -233,7 +284,7 @@ export class MineTime implements GameModule {
           const n = e.cause === 'hit' ? 14 : 7;
           this.particles.burst(p.x, p.y, color, n, { speed: e.cause === 'bomb' ? 9 : 6, size: 8 });
           this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : 0);
-          if (e.points >= 3 && e.cause === 'hit') floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y, 0xffffff, 26);
+          if (e.points >= 3 && e.cause === 'hit' && e.block.kind !== 'clock') floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y, 0xffffff, 26);
           if (e.cause === 'hit') this.ctx.shake(e.block.kind === 'hard' ? 9 : 5);
           break;
         }
@@ -268,6 +319,14 @@ export class MineTime implements GameModule {
           if (e.kind === 'drill') this.drillLightning(e.col, e.row);
           else sfx.power();
           this.ctx.shake(e.kind === 'drill' ? 16 : 6);
+          break;
+        }
+        case 'time': {
+          if (this.ended) break;
+          this.timeLeft += e.seconds;
+          const p = this.cellPos(e.col, e.row);
+          this.timeBonusFx(p.x, p.y, e.seconds, 0.08 * clocks++);
+          floatText(this.fxLayer, this.tw, `+${e.seconds} s`, p.x, p.y - 10, 0x7dffa8, 34);
           break;
         }
         case 'combo':
@@ -509,10 +568,12 @@ export class MineTime implements GameModule {
     if (Math.abs(g.score - this.shownScore) < 1) this.shownScore = g.score;
     this.scoreText.text = `${Math.round(this.shownScore)}`;
     this.scoreText.scale.set(1 + (this.scoreText.scale.x - 1) * 0.85);
-    const s = Math.ceil(this.timeLeft);
+    const s = Math.max(0, Math.ceil(this.timeLeft - this.timeInFlight));
     this.timeText.text = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    this.timeText.style.fill = s <= 10 ? 0xff5a5a : 0xffffff;
-    if (s <= 10) this.timeText.scale.set(1 + 0.1 * pulse);
+    this.timeFlash = Math.max(0, this.timeFlash - dt / 0.5);
+    const f = this.timeFlash;
+    this.timeText.style.fill = f > 0.85 ? 0xffffff : f > 0.1 ? 0x5dff8f : s <= 10 ? 0xff5a5a : 0xffffff;
+    this.timeText.scale.set(f > 0 ? 1 + 0.45 * Math.sin(f * Math.PI) * f + 0.1 * f : s <= 10 ? 1 + 0.1 * pulse : 1);
     this.levelText.text = `Level ${g.level} · Tiefe ${g.depth * 2 + 2} m`;
     const comboActive = now - g.lastHitT < 1.6 && g.combo >= 2;
     this.comboText.text = comboActive ? `Combo ${g.combo}${g.multiplier > 1 ? `  x${g.multiplier}` : ''}` : '';
@@ -531,6 +592,7 @@ export class MineTime implements GameModule {
         score: this.grid.score,
         stats: [
           `Edelsteine: ${this.grid.gems}`,
+          ...(this.grid.clocks ? [`Zeit-Blöcke: ${this.grid.clocks} (+${this.grid.timeBonus} s)`] : []),
           `Level erreicht: ${this.grid.level}`,
           `Tiefe: ${this.grid.depth * 2 + 2} m`,
           `Sprünge: ${this.hits} (davon ${this.highJumps} Hochsprünge)`,
@@ -543,6 +605,7 @@ export class MineTime implements GameModule {
   get state() {
     return {
       score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, cols: this.cols,
+      clocks: this.grid.clocks, timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
       paused: !!this.pause, pauseProgress: this.pause?.hold.progress ?? 0, vfx: { ...this.vfx.stats, active: this.vfx.active },
     };
   }

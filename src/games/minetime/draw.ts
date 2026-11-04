@@ -4,7 +4,7 @@ import type { Block } from './grid';
 export const GEM_COLORS = [0x2ee66b, 0x3fa9f5, 0xff3b5c, 0xe8fbff];
 export const KIND_COLORS: Record<string, number> = {
   dirt: 0x9a6233, stone: 0x8d939e, hard: 0x4b4f5e, gem: 0x9a6233, bomb: 0x7a4a33,
-  drill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, exit: 0x1d1d2b,
+  drill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, clock: 0x1d7f86, exit: 0x1d1d2b,
 };
 
 function hash(a: number, b: number, c = 0): number {
@@ -27,6 +27,27 @@ export function drawGem(g: Graphics, cx: number, cy: number, s: number, type: nu
     .stroke({ width: 3, color: shade(c, 0.55) });
   g.poly([cx, cy - s, cx + s * 0.3, cy - s * 0.25, cx, cy + s * 0.2, cx - s * 0.3, cy - s * 0.25]).fill({ color: 0xffffff, alpha: 0.55 });
   g.circle(cx - s * 0.35, cy - s * 0.45, s * 0.12).fill({ color: 0xffffff, alpha: 0.9 });
+}
+
+/** Stopwatch icon (time block + the flying HUD icon): white face, green rim, crown, "+" badge. */
+export function drawClock(g: Graphics, cx: number, cy: number, R: number, badge = true): void {
+  g.rect(cx - R * 0.22, cy - R - 10, R * 0.44, 8).fill(0xdfe6ee);
+  g.circle(cx, cy - R - 11, R * 0.18).fill(0x7dffa8);
+  g.circle(cx, cy, R + 4).fill(0x0c3a3e);
+  g.circle(cx, cy, R).fill(0xffffff).stroke({ width: Math.max(2, R * 0.18), color: 0x7dffa8 });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    g.moveTo(cx + Math.sin(a) * R * 0.7, cy - Math.cos(a) * R * 0.7).lineTo(cx + Math.sin(a) * R * 0.9, cy - Math.cos(a) * R * 0.9).stroke({ width: 3, color: 0x1d7f86 });
+  }
+  g.moveTo(cx, cy).lineTo(cx, cy - R * 0.7).stroke({ width: Math.max(2, R * 0.18), color: 0x112233, cap: 'round' });
+  g.moveTo(cx, cy).lineTo(cx + R * 0.5, cy + R * 0.3).stroke({ width: Math.max(2, R * 0.18), color: 0x2bd96b, cap: 'round' });
+  g.circle(cx, cy, Math.max(2, R * 0.15)).fill(0x112233);
+  if (badge) {
+    const bx = cx + R + 8, by = cy - R + 1;
+    g.circle(bx, by, 10).fill(0x2bd96b).stroke({ width: 2, color: 0xffffff });
+    g.rect(bx - 5, by - 1.5, 10, 3).fill(0xffffff);
+    g.rect(bx - 1.5, by - 5, 3, 10).fill(0xffffff);
+  }
 }
 
 /** Draws a block into `g` (local coords 0..w, 0..h). */
@@ -76,6 +97,9 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
       g.rect(cx - 24, cy + 10, 12, 8).fill(0xdfe6ee);
       g.rect(cx + 12, cy + 10, 12, 8).fill(0xdfe6ee);
       break;
+    case 'clock':
+      drawClock(g, cx, cy + 1, h * 0.3);
+      break;
     case 'exit':
       g.roundRect(cx - 22, cy - h * 0.36, 44, h * 0.72, 14).fill(0x2bd96b).stroke({ width: 4, color: 0xb6ffcf });
       g.poly([cx - 10, cy - 6, cx + 10, cy - 6, cx, cy + 10]).fill(0x0c4020);
@@ -85,6 +109,7 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
   if (b.kind === 'drill' || b.kind === 'hammer' || b.kind === 'magnet') {
     g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0xffe66b, alpha: 0.9 });
   }
+  if (b.kind === 'clock') g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0x7dffa8, alpha: 0.95 });
   // cracks for damaged blocks
   const dmg = b.maxHp - b.hp;
   for (let i = 0; i < dmg * 2; i++) {
