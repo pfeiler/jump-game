@@ -59,13 +59,15 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 
 * 6 Spalten, 8 sichtbare Reihen; das Feld scrollt mit, wenn man tiefer gräbt.
 * Erde (1 Schlag), Stein (2), Hartgestein (3) – mit sichtbaren Rissen.
-* Edelsteine werden mit der Tiefe wertvoller; Diamanten gibt es schon ab Level 1. Beim Einsammeln poppt der Punktewert kurz in der Farbe des Steins auf
+* Edelsteine werden mit der Tiefe wertvoller; Diamanten gibt es schon ab Level 1. Beim Einsammeln poppt der Punktewert kurz in der Farbe des Steins auf. Jede Sorte hat eine eigene Schliff-Form (auch ohne Farben unterscheidbar): Smaragd = Achteck-Treppenschliff, Saphir = runder Brillant, Rubin = Dreieck, Diamant = weiß-blauer Brillant mit Regenbogen-Funkeln und Schein; zufällige Glitzer-Sterne lassen sichtbare Steine funkeln
   (0,7 s, schwebt hoch und blendet aus; bei bis zu 3 Steinen gleichzeitig einzeln und leicht versetzt, bei mehr – TNT, Bohrer, Magnet – ein gemeinsames „+210 (6×)“).
 * Mischung pro Feld (Level 1 → 5): Edelsteine ≈ 19 → 28 %, Stein ≈ 14 %, Hartgestein ≈ 7 → 22 %, Rest Erde, Bomben, Power-ups, Zeit-Blöcke.
 * Bomben räumen den Radius 1 frei und lösen Kettenreaktionen aus.
 * **Zeit-Blöcke** ⏱ (türkis mit Stoppuhr): **+5 s** auf den Countdown – 2 pro Level (ab Level 3: 3), über die Tiefe verteilt.
   Zählen auch, wenn TNT, Bohrer oder ein Einsturz sie erwischt. Animation (< 1 s): Funken, Stoppuhr fliegt zum Timer,
   Timer blinkt grün und pulsiert, Ring + „+5 s“, Glockenspiel-Sound. Im 2-Spieler-Modus teilen sich beide den Timer.
+* **Wucht-Amboss** (≈ 3 % in Level 1, bis ≈ 4–5 % in der Tiefe/späteren Leveln): normale Landungen prallen ab („KLONG!“, kein Schaden, keine Strafe), nur ein **Hochsprung** zerschmettert ihn – dann kracht er 2–3 Blöcke tief durch seine Spalte (Bildschirmwackeln). Nie in der Ausgangs-Spalte, höchstens einer pro Reihe, nie zwei übereinander → es gibt immer einen normalen Weg.
+* **Feder-Block** (≈ 4 %): bricht mit 1 Treffer und gibt **Boing-Turbo** für 4 s (nur dem Spieler, der ihn trifft): normale Landung = 2 Treffer, Hochsprung = 3. Rosa Aura + Countdown-Ring um den Helm, Glitzerspur, „BOING! TURBO“. Mehrere Federn verlängern (max. 8 s); in der Level-Pause eingefroren.
 * Power-ups: **Bohrer** (ganze Spalte), **Quer-Bohrer** (ganze Reihe, links und rechts; Blitze laufen waagerecht die Reihe entlang), **Hammer** (8 s lang jeder Schlag zählt doppelt), **Magnet** (sammelt alle sichtbaren Edelsteine).
 * Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, kurze, halbtransparente Rauch-/Staubwolke – nach ≤ 1 s weg, damit die Sicht frei bleibt,
   Bildschirmwackeln, „BUMM!“); **Bohrer** = Blitze schlagen links und rechts ein (gezackt, weiß/blau, Bildschirm-Flackern,
@@ -202,13 +204,14 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – 81 vitest-Tests (Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
+* `npm test` – 93 vitest-Tests (Amboss & Boing-Turbo, Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
   Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
 * `node scripts/timeshots.mjs` – kurzer TNT-Rauch + Zeit-Block-Animation, Timer in der Pause eingefroren (Screenshots 21–22; `PLAYERS=2` für 2 Spieler).
 * `node scripts/drillshots.mjs` – Quer-Bohrer und Punkte-Pop-ups per Tastatur (Screenshots 23–24).
+* `node scripts/anvilshots.mjs` – Amboss (Klong/Hochsprung), Boing-Turbo inkl. Pause-Einfrieren, Edelstein-Nahaufnahme (Screenshots 25–27).
 * `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.
 * `node scripts/hopcam.mjs` – kleine Hüpfer mit künstlicher Kamera (`Y4M=…`), zählt erkannte Landungen. Video z. B. per ffmpeg:
   Foto auf Wurfparabeln bewegen (9,6 cm Hüpfhöhe = 0,28 s Flug, alle 0,5 s).

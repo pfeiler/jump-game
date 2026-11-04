@@ -91,6 +91,23 @@ export class Sfx {
     this.tone(2093, 0.25, 'triangle', 0.1, 0.18);
     this.noise(0.12, 0.08, 7000, 0.18, 'highpass');
   }
+  /** anvil: metallic "Klong" (inharmonic partials + short ring) */
+  clank(): void {
+    this.noise(0.05, 0.35, 5000, 0, 'highpass');
+    [523, 1307, 2142, 3180].forEach((f, i) => this.tone(f, 0.35 - i * 0.06, i ? 'sine' : 'triangle', 0.16 - i * 0.03));
+  }
+  /** anvil smashed and crashing down: heavy thud + rumble */
+  anvilCrash(): void {
+    this.tone(90, 0.5, 'sine', 0.55, 0, 35);
+    this.noise(0.6, 0.8, 600, 0.02);
+    [440, 1100].forEach((f) => this.tone(f, 0.25, 'triangle', 0.08, 0, f * 0.6));
+  }
+  /** spring: "boing" – rising wobbly slide */
+  boing(): void {
+    this.tone(160, 0.32, 'sine', 0.32, 0, 720);
+    this.tone(240, 0.28, 'triangle', 0.12, 0.05, 1100);
+    this.tone(900, 0.12, 'sine', 0.08, 0.28, 1300);
+  }
   pauseIn(): void { [784, 659, 523].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.12, i * 0.08)); }
   armsTick(): void { this.tone(880, 0.05, 'square', 0.06); }
   power(): void { this.tone(300, 0.35, 'sawtooth', 0.15, 0, 1200); this.tone(600, 0.3, 'square', 0.08, 0.1, 1800); }

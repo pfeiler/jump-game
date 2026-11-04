@@ -1,9 +1,9 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { GameContext, GameModule } from '../types';
 import { W, H } from '../types';
-import { MineGrid, COLS, VISIBLE_ROWS, type MineEvent, type Block, HAMMER_DURATION } from './grid';
+import { MineGrid, COLS, VISIBLE_ROWS, type MineEvent, type Block, HAMMER_DURATION, TURBO_DURATION } from './grid';
 import { planGemPopups, GEM_POP_DURATION, type GemHit } from './popups';
-import { drawBlock, drawClock, drawGem, GEM_COLORS, KIND_COLORS } from './draw';
+import { drawBlock, drawClock, drawGem, glint, GEM_COLORS, KIND_COLORS } from './draw';
 import { ParticleSystem } from '../../core/particles';
 import { Tweens, floatText, label, easeOutBack, easeOutCubic } from '../../core/fx';
 import { Vfx } from '../../core/vfx';
@@ -32,6 +32,15 @@ export class MineTime implements GameModule {
   private hud = new Container();
   private highlight = new Graphics();
   private markers: Container[] = [];
+  /** per-player turbo aura + countdown ring (child of the marker) */
+  private turboRings: Graphics[] = [];
+  private trailT = 0;
+  /** gem twinkles (one Graphics redrawn per frame, lives in the scrolling grid layer) */
+  private twinkle = new Graphics();
+  private twinkles: { c: number; r: number; t: number; dur: number; dx: number; dy: number; big: boolean }[] = [];
+  private twinkleT = 0;
+  private clanks = 0;
+  private anvilRow = 0;
   private cells = new Map<number, CellView>();
   private particles!: ParticleSystem;
   private scoreText!: Text;
@@ -78,7 +87,8 @@ export class MineTime implements GameModule {
     this.layer.addChild(frame);
 
     const mask = new Graphics().rect(GX, GY, COLS * CELL_W, VISIBLE_ROWS * CELL_H).fill(0xffffff);
-    this.gridLayer.addChild(this.cellLayer);
+    this.gridLayer.addChild(this.cellLayer, this.twinkle);
+    this.twinkle.blendMode = 'add';
     this.gridLayer.mask = mask;
     this.layer.addChild(mask, this.highlight, this.gridLayer);
 
@@ -90,7 +100,9 @@ export class MineTime implements GameModule {
       g.rect(-24, 2, 48, 8).fill(PLAYER_COLORS[i]);
       g.circle(0, -8, 7).fill(0xfff7a8).stroke({ width: 2, color: 0x806000 });
       g.poly([-10, 14, 10, 14, 0, 30]).fill(0xffffff);
-      m.addChild(g);
+      const ring = new Graphics();
+      m.addChild(ring, g);
+      this.turboRings.push(ring);
       if (ctx.players === 2) { const l = label(`${i + 1}`, 18, 0x1a1030, { stroke: { width: 0, color: 0 } }); l.y = 4; m.addChild(l); }
       this.markers.push(m);
       this.layer.addChild(m);
@@ -287,6 +299,8 @@ export class MineTime implements GameModule {
     let bombs = 0;
     let clocks = 0;
     const gemHits: GemHit[] = [];
+    const av = ev.find((e) => e.type === 'anvil');
+    if (av && av.type === 'anvil') this.anvilRow = av.row;
     const hd = ev.find((e) => e.type === 'powerup' && e.kind === 'hdrill');
     if (hd && hd.type === 'powerup') this.hdrillCol = hd.col;
     for (const e of ev) {
@@ -307,7 +321,7 @@ export class MineTime implements GameModule {
           const color = KIND_COLORS[e.block.kind];
           const n = e.cause === 'hit' ? 14 : 7;
           this.particles.burst(p.x, p.y, color, n, { speed: e.cause === 'bomb' ? 9 : 6, size: 8 });
-          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : e.cause === 'hdrill' ? this.hdrillDelay(e.col) : 0);
+          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : e.cause === 'hdrill' ? this.hdrillDelay(e.col) : e.cause === 'anvil' ? 0.12 + (e.row - this.anvilRow - 1) * 0.06 : 0);
           if (e.points >= 3 && e.cause === 'hit' && e.block.kind !== 'clock') floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y, 0xffffff, 26);
           if (e.cause === 'hit') this.ctx.shake(e.block.kind === 'hard' ? 9 : 5);
           break;
@@ -354,6 +368,31 @@ export class MineTime implements GameModule {
           floatText(this.fxLayer, this.tw, `+${e.seconds} s`, p.x, p.y - 10, 0x7dffa8, 34);
           break;
         }
+        case 'clank': {
+          // anvil: bounce off – sparks, wobble, "KLONG!", no damage
+          const p = this.cellPos(e.col, e.row);
+          sfx.clank();
+          this.particles.burst(p.x, p.y - CELL_H / 2, 0xfff1b0, 8, { shape: 'spark', speed: 9, size: 5, life: 0.35, up: 6 });
+          const v = this.cells.get(this.key(e.col, e.row));
+          if (v) this.tw.add(0.35, (k) => { if (v.c.destroyed) return; v.c.rotation = Math.sin(k * Math.PI * 4) * 0.08 * (1 - k); v.c.y = e.row * CELL_H + CELL_H / 2 + Math.sin(k * Math.PI * 4) * 3 * (1 - k); });
+          floatText(this.fxLayer, this.tw, 'KLONG!', p.x, p.y - 20, 0xc8d2e6, 28);
+          this.ctx.shake(2);
+          if (this.clanks++ % 4 === 0) this.hint('Amboss! Nur ein Hochsprung ⬆ zerschmettert ihn – oder geh eine Spalte weiter.');
+          break;
+        }
+        case 'anvil':
+          this.anvilFall(e.col, e.row, e.depth);
+          break;
+        case 'turbo': {
+          const p = this.cellPos(e.col, e.row);
+          this.banner(this.ctx.players === 2 ? `BOING! TURBO P${e.player + 1}` : 'BOING! TURBO', 0xff7ad9, 60);
+          sfx.boing();
+          this.particles.burst(p.x, p.y, 0xff7ad9, 14, { shape: 'spark', speed: 11, size: 7, life: 0.6, up: 9 });
+          const m = this.markers[e.player];
+          if (m) this.tw.add(0.4, (k) => { if (!m.destroyed) m.scale.set(1 + Math.sin(k * Math.PI * 3) * 0.35 * (1 - k)); });
+          this.ctx.shake(5);
+          break;
+        }
         case 'combo':
           if (e.combo >= 3) sfx.combo(e.combo);
           if (e.multiplier > 1 && [5, 10, 20].includes(e.combo)) {
@@ -397,6 +436,34 @@ export class MineTime implements GameModule {
     const p = this.cellPos(col, row);
     for (let r = 0; r < 5; r++) this.particles.burst(p.x, p.y + r * CELL_H, 0x9fd0ff, 3, { shape: 'spark', speed: 9, size: 6, life: 0.5 });
     this.ctx.sfx.thunder();
+  }
+
+  /** Smashed anvil: it drops 2–3 rows down its column and lands with a heavy impact. */
+  private anvilFall(col: number, row: number, depth: number): void {
+    const from = this.cellPos(col, row);
+    const to = this.cellPos(col, Math.min(this.grid.rows - 1, row + depth));
+    const g = new Graphics();
+    drawBlock(g, { kind: 'anvil', hp: 1, maxHp: 1 }, CELL_W, CELL_H, col, row, this.grid.level);
+    g.pivot.set(CELL_W / 2, CELL_H / 2);
+    g.position.set(from.x, from.y);
+    this.fxLayer.addChild(g);
+    floatText(this.fxLayer, this.tw, 'WUMMS!', from.x, from.y - 24, 0xffd23f, 44);
+    const fall = 0.12 + depth * 0.05;
+    this.tw.add(fall, (k) => { g.y = from.y + (to.y - from.y) * k * k; g.rotation = 0.06 * Math.sin(k * 6); }, () => {
+      if (this.destroyed) { g.destroy(); return; }
+      this.ctx.sfx.anvilCrash();
+      this.ctx.shake(26);
+      this.vfx.flash(0xffffff, 0.25);
+      this.particles.burst(to.x, to.y + CELL_H / 3, 0x8a8f9c, 14, { speed: 12, size: 9, up: 8 });
+      this.particles.burst(to.x, to.y + CELL_H / 3, 0xfff1b0, 12, { shape: 'spark', speed: 14, size: 6, life: 0.5 });
+      const ring = new Graphics();
+      ring.position.set(to.x, to.y + CELL_H / 3);
+      this.fxLayer.addChild(ring);
+      this.tw.add(0.35, (k) => {
+        ring.clear().ellipse(0, 0, 30 + 120 * easeOutCubic(k), 10 + 30 * easeOutCubic(k)).stroke({ width: 8 * (1 - k) + 1, color: 0xdfe6ee, alpha: 0.8 * (1 - k) });
+        g.alpha = 1 - k;
+      }, () => { ring.destroy(); g.destroy(); });
+    });
   }
 
   /** column of the last cross drill (blocks break outwards from it) */
@@ -525,8 +592,9 @@ export class MineTime implements GameModule {
     P.closing = true;
     window.removeEventListener('keydown', P.onKey);
     // the hammer power-up does not run out while the game is paused
+    // … and neither does the Boing-Turbo
     const pausedFor = performance.now() / 1000 - this.pauseStartedAt;
-    if (this.grid.hammerUntil > this.pauseStartedAt) this.grid.hammerUntil += pausedFor;
+    this.grid.shiftTimers(this.pauseStartedAt, pausedFor);
     this.ctx.sfx.confirm();
     P.ring.clear().circle(0, 0, 64).fill({ color: 0x2ecc71, alpha: 0.95 }).stroke({ width: 12, color: 0x7dff8a });
     this.tw.add(0.35, (k) => { this.pauseLayer.alpha = 1 - k; }, () => {
@@ -578,7 +646,9 @@ export class MineTime implements GameModule {
       for (const land of p.landings) {
         this.hits++;
         if (land.high) this.highJumps++;
-        const ev = this.grid.hit(this.cols[p.id], now, land.high);
+        const turbo = this.grid.turboActive(p.id, now);
+        const ev = this.grid.hit(this.cols[p.id], now, land.high, p.id);
+        if (turbo) floatText(this.fxLayer, this.tw, land.high ? 'TURBO x3!' : 'TURBO x2!', this.markers[p.id].x, this.markers[p.id].y - 52, 0xff7ad9, 26);
         this.onEvents(ev, p.id);
         if (land.high) floatText(this.fxLayer, this.tw, 'HOCHSPRUNG x2!', this.cellPos(this.cols[p.id], this.grid.viewTop).x, GY + 190, 0x7df9ff, 30);
       }
@@ -609,6 +679,8 @@ export class MineTime implements GameModule {
       }
     }
     this.highlight.mask = null;
+    this.updateTurbo(dt, now);
+    this.updateTwinkles(dt);
 
     // HUD
     const g = this.grid;
@@ -629,6 +701,59 @@ export class MineTime implements GameModule {
     this.hammerText.text = hammer > 0 ? `HAMMER ${Math.ceil(hammer)}s` : '';
     if (hammer > 0) this.hammerText.alpha = hammer < 2 ? pulse : 1;
     void HAMMER_DURATION;
+  }
+
+  /** Boing-Turbo on the player marker: pink aura, springy bounce, countdown ring and a sparkle trail. */
+  private updateTurbo(dt: number, now: number): void {
+    const ref = this.pause ? this.pauseStartedAt : now; // frozen during the level pause
+    this.trailT += dt;
+    const emit = this.trailT > 0.06;
+    if (emit) this.trailT = 0;
+    for (let i = 0; i < this.ctx.players; i++) {
+      const g = this.turboRings[i];
+      const left = this.grid.turboUntil[i] - ref;
+      g.clear();
+      if (left <= 0) continue;
+      const frac = Math.min(1, left / TURBO_DURATION);
+      const blink = left < 1 ? 0.5 + 0.5 * Math.sin(this.t * 20) : 1;
+      g.circle(0, 0, 38 + 4 * Math.sin(this.t * 10)).fill({ color: 0xff7ad9, alpha: 0.28 * blink });
+      g.circle(0, 0, 33).stroke({ width: 6, color: 0x3a1030, alpha: 0.6 });
+      g.arc(0, 0, 33, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2).stroke({ width: 6, color: 0xff7ad9, alpha: blink, cap: 'round' });
+      // spring coil under the marker
+      g.moveTo(-9, 32);
+      for (let k = 1; k <= 6; k++) g.lineTo(k % 2 ? 9 : -9, 32 + k * 3 * (1 + 0.3 * Math.sin(this.t * 14)));
+      g.stroke({ width: 3, color: 0xffd1e8 });
+      if (emit && !this.pause) {
+        const m = this.markers[i];
+        this.particles.burst(m.x + (Math.random() - 0.5) * 30, m.y + 20, 0xff7ad9, 1, { shape: 'spark', speed: 2, size: 6, life: 0.4 });
+      }
+    }
+  }
+
+  /** gentle gem sparkle: a few glints at random visible gems (diamonds more often) */
+  private updateTwinkles(dt: number): void {
+    this.twinkleT -= dt;
+    if (this.twinkleT <= 0 && this.twinkles.length < 6) {
+      this.twinkleT = 0.18;
+      const top = Math.floor(this.scrollY), cand: { c: number; r: number; big: boolean }[] = [];
+      for (let r = top; r < Math.min(this.grid.rows, top + VISIBLE_ROWS); r++)
+        for (let c = 0; c < COLS; c++) {
+          const b = this.grid.get(c, r);
+          if (b?.kind === 'gem') { cand.push({ c, r, big: b.gemType === 3 }); if (b.gemType === 3) cand.push({ c, r, big: true }, { c, r, big: true }); }
+        }
+      if (cand.length) {
+        const q = cand[Math.floor(Math.random() * cand.length)];
+        this.twinkles.push({ ...q, t: 0, dur: 0.5 + Math.random() * 0.3, dx: (Math.random() - 0.5) * 30, dy: (Math.random() - 0.6) * 24 });
+      }
+    }
+    const g = this.twinkle.clear();
+    for (let i = this.twinkles.length - 1; i >= 0; i--) {
+      const w = this.twinkles[i];
+      w.t += dt;
+      if (w.t >= w.dur || !this.grid.get(w.c, w.r)) { this.twinkles.splice(i, 1); continue; }
+      const k = Math.sin((w.t / w.dur) * Math.PI);
+      glint(g, w.c * CELL_W + CELL_W / 2 + w.dx, w.r * CELL_H + CELL_H / 2 + w.dy, (w.big ? 11 : 8) * k, 0.9 * k, w.big ? 0xe8fbff : 0xffffff);
+    }
   }
 
   private finish(): void {
@@ -653,7 +778,7 @@ export class MineTime implements GameModule {
   get state() {
     return {
       score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, cols: this.cols,
-      clocks: this.grid.clocks, timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
+      clocks: this.grid.clocks, turboUntil: [...this.grid.turboUntil], turboLeft: this.grid.turboUntil.map((u) => Math.max(0, u - (this.pause ? this.pauseStartedAt : performance.now() / 1000))), timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
       paused: !!this.pause, pauseProgress: this.pause?.hold.progress ?? 0, vfx: { ...this.vfx.stats, active: this.vfx.active },
     };
   }
