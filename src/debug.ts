@@ -54,7 +54,7 @@ export class DebugOverlay {
         c.setLineDash([8, 6]);
         const by = r.camY + det.baselineY * r.camH;
         c.beginPath(); c.moveTo(hx - 80, by); c.lineTo(hx + 80, by); c.stroke();
-        const ey = r.camY + (det.baselineY - det.cfg.airborne * det.scale) * r.camH;
+        const ey = r.camY + (det.baselineY - det.airborneEff * det.scale) * r.camH;
         c.strokeStyle = '#ffe66b';
         c.beginPath(); c.moveTo(hx - 80, ey); c.lineTo(hx + 80, ey); c.stroke();
         c.setLineDash([]);
@@ -70,7 +70,7 @@ export class DebugOverlay {
       c.fillRect(gx, gy, gw, gh);
       const det = tp.detector;
       const Y = (v: number) => gy + gh - 20 - (v + 0.3) * ((gh - 30) / 1.8);
-      for (const [v, col] of [[0, '#888'], [det.cfg.edge, '#7dffa8'], [det.cfg.airborne, '#ffe66b']] as [number, string][]) {
+      for (const [v, col] of [[0, '#888'], [det.edgeEff, '#7dffa8'], [det.airborneEff, '#ffe66b']] as [number, string][]) {
         c.strokeStyle = col; c.beginPath(); c.moveTo(gx, Y(v)); c.lineTo(gx + gw, Y(v)); c.stroke();
       }
       const h = tp.history;
@@ -81,7 +81,7 @@ export class DebugOverlay {
         c.stroke();
       }
       c.fillStyle = '#fff'; c.font = '13px monospace';
-      c.fillText(`P${i + 1} ${det.state}  rise=${det.rise.toFixed(2)} v=${det.velocity.toFixed(2)} scale=${det.scale.toFixed(3)} x=${tp.x.toFixed(2)} ${tp.visible ? '' : '(nicht sichtbar)'}`, gx + 6, gy + 14);
+      c.fillText(`P${i + 1} ${det.state}  rise=${det.rise.toFixed(2)} v=${det.velocity.toFixed(2)} scale=${det.scale.toFixed(3)} x=${tp.x.toFixed(2)} σ=${det.noise.toFixed(3)} n=${det.stats.landings} ${tp.visible ? '' : '(nicht sichtbar)'}`, gx + 6, gy + 14);
     }
 
     // stats

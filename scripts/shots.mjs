@@ -42,7 +42,11 @@ await page.keyboard.press('KeyB');
 await wait(300);
 await page.screenshot({ path: `${out}/06-gameplay-debug.png` });
 await page.keyboard.press('KeyB');
-await page.waitForFunction(() => window.__jump.scene?.name === 'end', null, { timeout: 120000 });
+// wait for the end screen (a level pause waits for arms-up / Enter → continue it)
+for (let i = 0; i < 240 && (await page.evaluate(() => window.__jump.scene?.name)) !== 'end'; i++) {
+  if (await page.evaluate(() => !!window.__jump.scene?.game?.state?.paused)) await page.keyboard.press('Enter');
+  await wait(500);
+}
 await wait(800);
 await page.keyboard.type('Leo');
 await wait(300);

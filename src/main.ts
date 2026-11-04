@@ -3,6 +3,7 @@ import './style.css';
 import './games';
 import { W, H, type GameDefinition, type GameResult } from './games/types';
 import { InputManager } from './input/inputManager';
+import { sensitivityConfig } from './input/jumpDetector';
 import { CameraTracker } from './input/camera';
 import { Sfx } from './core/audio';
 import { initPhysics } from './core/particles';
@@ -24,7 +25,7 @@ class App {
   camSprite: Sprite | null = null;
   sceneLayer = new Container();
   scene: Scene | null = null;
-  input = new InputManager({ highFlightTime: Number(params.get('high')) || 0.5 });
+  input = new InputManager({ ...sensitivityConfig(Number(params.get('sens')) || 1), highFlightTime: Number(params.get('high')) || 0.5 });
   sfx = new Sfx();
   camera: CameraTracker | null = null;
   players: 1 | 2 = params.get('players') === '2' ? 2 : 1;

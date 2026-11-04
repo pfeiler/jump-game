@@ -48,12 +48,14 @@ describe('JumpDetector', () => {
   });
 
   it('detects a normal jump and goes through all states', () => {
-    const { landings, states } = run(trajectory([{ start: 1, flight: 0.4 }], 3));
+    const { events, landings, states } = run(trajectory([{ start: 1, flight: 0.4 }], 3));
+    expect(events.filter((e) => e.type === 'takeoff')).toHaveLength(1);
     expect(landings).toHaveLength(1);
     expect(landings[0].high).toBe(false);
     expect(landings[0].flightTime).toBeGreaterThan(0.3);
     expect(landings[0].flightTime).toBeLessThan(0.5);
-    for (const s of ['GROUNDED', 'TAKEOFF', 'AIRBORNE', 'APEX', 'LANDING']) expect(states.has(s)).toBe(true);
+    // TAKEOFF is passed within the takeoff frame (a fast rise reaches `airborne` immediately)
+    for (const s of ['GROUNDED', 'AIRBORNE', 'APEX', 'LANDING']) expect(states.has(s)).toBe(true);
   });
 
   it('classifies a long flight as high jump', () => {
@@ -63,7 +65,7 @@ describe('JumpDetector', () => {
     expect(landings[0].height).toBeGreaterThan(0.4);
   });
 
-  it('ignores small trampoline bounces (few cm)', () => {
+  it('ignores tiny mat wobbles (≈ 2 cm, below the hop threshold)', () => {
     const bounces = Array.from({ length: 12 }, (_, i) => ({ start: 0.5 + i * 0.35, flight: 0.14 }));
     const { landings } = run(trajectory(bounces, 6));
     expect(landings).toHaveLength(0);

@@ -108,7 +108,11 @@ export class CalibrationScene implements Scene {
           const last = s.slice(-n);
           const y = last.reduce((a, b) => a + b.y, 0) / n;
           const sc = last.reduce((a, b) => a + b.s, 0) / n;
-          tp.detector.calibrate(y, sc);
+          // white-noise estimate from frame-to-frame differences (robust against slow drift)
+          let d2 = 0;
+          for (let j = 1; j < n; j++) d2 += (last[j].y - last[j - 1].y) ** 2;
+          const noiseSd = n > 5 ? Math.sqrt(d2 / (n - 1) / 2) : undefined;
+          tp.detector.calibrate(y, sc, noiseSd);
           this.done[i] = true;
           this.sfx.confirm();
         }

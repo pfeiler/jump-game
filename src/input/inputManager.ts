@@ -57,10 +57,16 @@ export class InputManager {
     return this.camera?.status.state === 'running';
   }
 
+  private lastResultT = -1;
+
   attachCamera(cam: CameraTracker): void {
     this.camera = cam;
     cam.onResult = (r, nowMs) => {
-      const t = nowMs / 1000;
+      // use the frame's capture time, not the arrival time: inference latency jitters and would
+      // distort the measured vertical speed and flight time (kept strictly increasing)
+      const cap = Number.isFinite(r.captureT) && r.captureT <= nowMs ? r.captureT : nowMs;
+      const t = Math.max(cap / 1000, this.lastResultT + 0.001);
+      this.lastResultT = t;
       const hips: HipSample[] = r.poses.map((p) => hipFromPose(p, cam.aspect));
       const prev = this.tracked.slice(0, this.players).map((p, i) => (this.prevAssign[i] !== null && p.visible ? p.rawX : null));
       const a = assignPoses(hips, prev, this.players);

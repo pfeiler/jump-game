@@ -6,9 +6,23 @@ import { OneEuroFilter } from './oneEuro';
 import { JumpDetector, type JumpConfig, type LandingEvent } from './jumpDetector';
 import { LM, type Landmark } from './camera';
 
-export interface HipSample { x: number; y: number; scale: number; visible: boolean }
+export interface HipSample {
+  x: number;
+  /** vertical body signal for jump detection: 65 % hip centre + 35 % shoulder centre (less noise than hips alone) */
+  y: number;
+  scale: number;
+  visible: boolean;
+}
 
-/** Hip centre (mirrored x), torso length as body scale (aspect-corrected). */
+/** weight of the shoulder centre in the vertical jump signal */
+export const SHOULDER_WEIGHT = 0.35;
+
+/**
+ * Hip centre (mirrored x), fused hip/shoulder height, torso length as body scale (aspect-corrected).
+ * Shoulders move rigidly with the hips during a hop but have independent detection noise, so
+ * averaging lowers jitter. Ankles are not used: at 2–3 m they are often cut off or occluded by the
+ * trampoline frame, and they stay on the mat during the "contact" part of a bounce.
+ */
 export function hipFromPose(lm: Landmark[], aspect: number): HipSample {
   const lh = lm[LM.L_HIP], rh = lm[LM.R_HIP], ls = lm[LM.L_SHOULDER], rs = lm[LM.R_SHOULDER];
   const hx = (lh.x + rh.x) / 2, hy = (lh.y + rh.y) / 2;
@@ -16,9 +30,10 @@ export function hipFromPose(lm: Landmark[], aspect: number): HipSample {
   const dx = (hx - sx) * aspect, dy = hy - sy;
   return {
     x: 1 - hx,
-    y: hy,
+    y: hy + SHOULDER_WEIGHT * (sy - hy),
     scale: Math.hypot(dx, dy),
-    visible: Math.min(lh.v, rh.v) > 0.5 && Math.min(ls.v, rs.v) > 0.3,
+    // lenient gate: mid-air frames often have slightly lower confidence (motion blur)
+    visible: Math.min(lh.v, rh.v) > 0.35 && Math.min(ls.v, rs.v) > 0.25,
   };
 }
 

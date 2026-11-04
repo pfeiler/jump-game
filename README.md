@@ -51,6 +51,7 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 | `?seg=0` | keine Personen-Freistellung (spart Rechenzeit; Kamerabild wird dann abgedunkelt gezeigt) |
 | `?worker=0` | Pose-Erkennung im Hauptthread statt im Web Worker |
 | `?high=0.6` | Flugzeit-Schwelle (s) für Hochsprung |
+| `?sens=1.5` | Empfindlichkeit der Sprungerkennung (Standard 1; > 1 = kleinere Hüpfer zählen, < 1 = unempfindlicher, 0,3–3) |
 | `?players=2` | direkt im 2-Spieler-Modus starten |
 | `?time=60` | Rundenlänge in Sekunden (Standard 120) |
 
@@ -103,18 +104,42 @@ Das Spiel bekommt pro Frame `ctx.input.poll()` mit X-Position (0…1) und Landun
 
 ### Sprungerkennung
 
-1. **Kalibrierung (3 s still stehen):** Baseline der Hüftmitte (Mittel aus Landmarks 23/24) und Körpermaß
-   (Schulter–Hüfte-Abstand, seitenverhältnis-korrigiert). Alles Weitere wird in „Torso-Längen“ gerechnet →
-   unabhängig von Abstand (2–3 m) und Kindergröße.
-2. **One-Euro-Filter** auf die Hüfthöhe (glättet Zittern, bleibt bei schnellen Bewegungen reaktionsschnell),
-   Geschwindigkeit aus der gefilterten Ableitung.
-3. **Zustandsautomat:** GROUNDED → TAKEOFF (Anstieg > 0,1 Torso und Aufwärtsgeschwindigkeit) → AIRBORNE (> 0,22 Torso)
-   → APEX → LANDING. Kleine Wipp-Bewegungen auf dem Trampolin bleiben in TAKEOFF hängen und werden verworfen;
-   Flugzeiten < 0,15 s oder > 2 s werden ignoriert, danach kurze Refraktärzeit.
-4. **Flugzeit → Höhe:** Zeitpunkte der Schwellen-Überschreitung werden zwischen Frames linear interpoliert, die
-   Zeit oberhalb der Schwelle wird über die Wurfparabel auf die volle Flugzeit hochgerechnet
-   (T = t_mess / √(1 − Schwelle/Gipfel)); Höhe **h = g·T²/8**.
-5. Langsame Baseline-Nachführung im Stand (Drift, Trampolin-Durchhang), Körpermaß wird langsam angepasst.
+Ausgelegt auf **kleine Hüpfer** (Kind auf dem Mini-Trampolin bzw. Hüpfen auf der Stelle vor der Laptop-Webcam,
+2–3 m Abstand): schon ~5 cm Hüpfhöhe zählen, auch bei nur 10–15 Pose-Bildern pro Sekunde.
+
+1. **Körpersignal:** 65 % Hüftmitte (Landmarks 23/24) + 35 % Schultermitte (11/12). Schultern bewegen sich beim Hüpfen
+   starr mit, haben aber eigenes Erkennungsrauschen → das Mittel zittert weniger als die Hüfte allein. Arme heben
+   verschiebt die Schultern kaum (≈ 4 % Torso im Signal). Knöchel (27/28) werden nicht benutzt: bei 2–3 m oft
+   abgeschnitten/verdeckt und beim Trampolin-Kontakt wenig aussagekräftig.
+2. **Kalibrierung (3 s still stehen):** Baseline, Körpermaß (Schulter–Hüfte-Abstand, seitenverhältnis-korrigiert) und
+   **Rauschpegel** σ. Alles wird in „Torso-Längen“ gerechnet → unabhängig von Abstand und Kindergröße.
+   Wird die Kalibrierung übersprungen, nimmt der Automat das erste Bild als Baseline, lernt σ im Stand und
+   übernimmt einen dauerhaften Versatz nach ~1,2 s.
+3. **Leichter One-Euro-Filter** (minCutoff 8 Hz, β 2): kaum Verzögerung, auch bei 10 fps. Zeitstempel = Aufnahmezeitpunkt
+   des Kamerabilds (nicht Ankunft des Ergebnisses), damit schwankende Inferenzzeiten Geschwindigkeit/Flugzeit nicht verfälschen.
+4. **Zustandsautomat:** Absprung, wenn das Signal die Schwelle *edge* (0,045 Torso) von unten kreuzt, mit ≥ 0,5 Torso/s
+   steigt (gemessen über ≥ 0,06–0,3 s, Anstieg deutlich über dem Rauschen) und innerhalb von 0,4 s den Gipfel
+   *airborne* (0,07 Torso) erreicht – Absprung und „in der Luft“ dürfen im selben Bild passieren.
+   Landung = wieder unter *edge*; auch wenn bei niedriger fps direkt aus der Luft ein Bild unter der Baseline kommt.
+   Schnelle Hüpf-Serien, deren Bodenkontakt zwischen zwei Bildern verschwindet, werden über das „Tal“ getrennt.
+   Keine Refraktärzeit, Flugzeit 0,1–1,5 s, physikalische Plausibilität (lange „Flüge“ mit kleinem Gipfel = Zehenspitzen
+   → verworfen).
+5. **Rauschanpassung:** edge ≥ 2,5·σ und airborne ≥ 4·σ – bei sehr unruhigem Tracking (schlechtes Licht, weit weg)
+   werden die Schwellen automatisch angehoben, damit Zittern keine Sprünge erzeugt.
+6. **Baseline** wird nur nach 0,8 s ohne Hüpfen nachgeführt – eine Hüpf-Serie kann sich nicht mehr „selbst wegkalibrieren“.
+7. **Flugzeit → Höhe:** Schwellen-Zeitpunkte werden interpoliert, die Zeit über der Schwelle per Wurfparabel auf die volle
+   Flugzeit hochgerechnet (T = t_mess / √(1 − Schwelle/Gipfel), max. ×1,58); **h = g·T²/8**. Hochsprung ab 0,5 s Flugzeit
+   (≈ 30 cm) – kleine Hüpfer (0,2–0,3 s) sind nie Hochsprünge.
+
+Simulierte Erkennungsrate (Rauschen σ = 1,2 % Torso, je 600 Hüpfer, Flugzeit 0,2–0,3 s), `JUMP_RATES=1 npx vitest run tests/jumpRates.test.ts`:
+
+| Hüpfhöhe (Torso) | 8 fps | 10 fps | 15 fps | 30 fps |
+|---|---|---|---|---|
+| 0,10 (≈ 4 cm) | 70 % | 92 % | 99 % | 100 % |
+| 0,12 (≈ 5 cm) | 94 % | 99 % | 100 % | 100 % |
+| 0,16–0,3 | 99–100 % | 100 % | 100 % | 100 % |
+
+Vorher (bis v304348d): 0 % bei 0,12–0,2 Torso, 11 / 28 / 78 % bei 0,3 Torso (10 / 15 / 30 fps).
 
 Zielwert Latenz (Kamerabild → Landung erkannt): < 50–80 ms auf einem aktuellen Laptop mit GPU-Delegate
 (erwartet: Inferenz Lite ≈ 10–25 ms, Full ≈ 20–40 ms, plus ~1 Kamera-Frame – auf echter Hardware **noch nicht gemessen**;
@@ -166,16 +191,20 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 * Ganzer Körper sollte im Bild sein, gute Beleuchtung von vorne, ruhiger Hintergrund.
 * Ruckelt es: `?model=lite`, notfalls zusätzlich `?seg=0`.
 * Hochsprung wird zu selten / zu oft erkannt: `?high=0.45` bzw. `?high=0.6`.
+* Kleine Hüpfer werden verpasst: `?sens=1.5` (oder 2). Zählt es Sprünge, obwohl niemand hüpft: `?sens=0.7`.
+* Im Debug-Overlay (**B**) auf „Pose Hz“ achten: unter ~10 Bildern/s werden sehr kurze Hüpfer unzuverlässig → `?model=lite`.
 * Mit **B** das Debug-Overlay öffnen: gelbe Linie = Absprungschwelle, grün = Baseline, Kurve = Hüfthöhe.
 
 ## Tests & Screenshots
 
-* `npm test` – 50 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Wipper/Hochsprünge/Personenverlust, Mine-Time-Logik, Spielerzuordnung,
+* `npm test` – 65 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
   Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
 * `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.
+* `node scripts/hopcam.mjs` – kleine Hüpfer mit künstlicher Kamera (`Y4M=…`), zählt erkannte Landungen. Video z. B. per ffmpeg:
+  Foto auf Wurfparabeln bewegen (9,6 cm Hüpfhöhe = 0,28 s Flug, alle 0,5 s).
 * `node scripts/camtest.mjs` – Durchlauf mit künstlicher Kamera (`Y4M=/pfad/video.y4m`, `QS='&model=lite&delegate=cpu'`).
 
 ## Bekannte Grenzen
@@ -184,6 +213,7 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
   aus Physik + synthetischen Tests abgeleitet und müssen ggf. nachjustiert werden.
 * Die Arme-hoch-Geste wurde mit dem echten Pose-Modell nur auf Standbildern/Videos in Headless-Chrome (~3 fps) geprüft,
   nicht mit einer Person vor einer echten Kamera.
-* Bei niedriger Pose-Bildrate (< 10 fps) werden kurze Sprünge verpasst und Flugzeiten überschätzt.
+* Bei niedriger Pose-Bildrate (< 10 fps) werden sehr kurze Hüpfer teilweise verpasst und Flugzeiten eher überschätzt.
+* Die Sprung-Schwellen sind mit synthetischen Signalen abgestimmt; das echte MediaPipe-Rauschen beim Hüpfen ist nicht vermessen.
 * Die Pose-Maske ist grob (Kanten, Haare); für schöne Freisteller siehe Profi-Stack.
 * Das JS-Bundle ist groß (~3,7 MB, v. a. Rapier-WASM inline + Pixi); erster Start lädt zusätzlich ~25 MB Modell+WASM (danach Browser-Cache).
