@@ -4,7 +4,7 @@ import type { Block } from './grid';
 export const GEM_COLORS = [0x2ee66b, 0x3fa9f5, 0xff3b5c, 0xe8fbff];
 export const KIND_COLORS: Record<string, number> = {
   dirt: 0x9a6233, stone: 0x8d939e, hard: 0x4b4f5e, gem: 0x9a6233, bomb: 0x7a4a33,
-  drill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, clock: 0x1d7f86, exit: 0x1d1d2b,
+  drill: 0x6b5a3a, hdrill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, clock: 0x1d7f86, exit: 0x1d1d2b,
 };
 
 function hash(a: number, b: number, c = 0): number {
@@ -86,6 +86,20 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
       g.poly([cx - 14, cy - h * 0.32 + 14, cx + 14, cy - h * 0.32 + 14, cx, cy + h * 0.34]).fill(0xffd23f).stroke({ width: 2, color: 0x9a7a10 });
       for (let i = 0; i < 3; i++) g.moveTo(cx - 10 + i * 4, cy - 6 + i * 9).lineTo(cx + 10 - i * 4, cy - 2 + i * 9).stroke({ width: 2, color: 0x9a7a10 });
       break;
+    case 'hdrill': {
+      // cross drill: orange motor in the middle, two yellow bits pointing left and right
+      const L = w * 0.36, bh = h * 0.2;
+      for (const dir of [-1, 1]) {
+        g.poly([cx + dir * 12, cy - bh, cx + dir * 12, cy + bh, cx + dir * L, cy]).fill(0xffd23f).stroke({ width: 2, color: 0x9a7a10 });
+        for (let i = 0; i < 3; i++) {
+          const x0 = cx + dir * (16 + i * 8), hh = bh * (1 - (i + 1) * 0.22);
+          g.moveTo(x0, cy - hh).lineTo(x0 + dir * 5, cy + hh).stroke({ width: 2, color: 0x9a7a10 });
+        }
+      }
+      g.roundRect(cx - 13, cy - bh - 3, 26, bh * 2 + 6, 5).fill(0xe8742a).stroke({ width: 2, color: 0x7a3a10 });
+      g.rect(cx - 2, cy - bh - 1, 4, bh * 2 + 2).fill({ color: 0xffffff, alpha: 0.35 });
+      break;
+    }
     case 'hammer':
       g.roundRect(cx - 4, cy - 8, 8, h * 0.42, 3).fill(0x8b5a2b);
       g.roundRect(cx - 22, cy - h * 0.32, 44, 18, 5).fill(0xb8c0cc).stroke({ width: 2, color: 0x5b6270 });
@@ -106,7 +120,7 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
       g.rect(cx - 4, cy - 18, 8, 13).fill(0x0c4020);
       break;
   }
-  if (b.kind === 'drill' || b.kind === 'hammer' || b.kind === 'magnet') {
+  if (b.kind === 'drill' || b.kind === 'hdrill' || b.kind === 'hammer' || b.kind === 'magnet') {
     g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0xffe66b, alpha: 0.9 });
   }
   if (b.kind === 'clock') g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0x7dffa8, alpha: 0.95 });

@@ -148,13 +148,16 @@ export class Vfx {
     return pts;
   }
 
-  /** Lightning bolt striking down from y0 to y1 at x; flickers a few times. */
-  lightning(x: number, y0: number, y1: number, onImpact?: () => void, delay = 0): void {
+  /** Lightning bolt striking down from y0 to y1 at x; flickers a few times.
+   *  `horizontal`: the bolt runs along the line y = x from x = y0 to x = y1 instead (cross drill). */
+  lightning(x: number, y0: number, y1: number, onImpact?: () => void, delay = 0, horizontal = false): void {
     this.stats.bolts++;
     const g = new Graphics();
     g.blendMode = 'add';
     this.container.addChild(g);
     let lastStage = -1;
+    // horizontal bolts are built vertically and then mirrored at the diagonal (swap x/y)
+    const sw = (pts: number[]) => { if (!horizontal) return pts; const o = new Array<number>(pts.length); for (let i = 0; i < pts.length; i += 2) { o[i] = pts[i + 1]; o[i + 1] = pts[i]; } return o; };
     const draw = () => {
       g.clear();
       const main = Vfx.boltPath(x + (Math.random() - 0.5) * 30, y0, x + (Math.random() - 0.5) * 16, y1, 140);
@@ -169,18 +172,19 @@ export class Vfx {
         for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
         g.stroke({ color: 0xffffff, width: w * 0.7, alpha: 1, join: 'round', cap: 'round' });
       };
-      stroke(main, 6);
+      stroke(sw(main), 6);
       // a few branches
       for (let b = 0; b < 3; b++) {
         const i = 2 * (8 + Math.floor(Math.random() * (main.length / 2 - 20)));
         const bx = main[i], by = main[i + 1];
         const len = 60 + Math.random() * 120;
         const dir = Math.random() < 0.5 ? -1 : 1;
-        stroke(Vfx.boltPath(bx, by, bx + dir * len * 0.7, by + len, 50, 4), 2.5);
+        stroke(sw(Vfx.boltPath(bx, by, bx + dir * len * 0.7, by + len * (Math.sign(y1 - y0) || 1), 50, 4)), 2.5);
       }
       // impact glow
-      g.circle(x, y1, 34).fill({ color: 0x9fd0ff, alpha: 0.5 });
-      g.circle(x, y1, 14).fill({ color: 0xffffff, alpha: 0.9 });
+      const [ix, iy] = horizontal ? [y1, x] : [x, y1];
+      g.circle(ix, iy, 34).fill({ color: 0x9fd0ff, alpha: 0.5 });
+      g.circle(ix, iy, 14).fill({ color: 0xffffff, alpha: 0.9 });
     };
     const flick = [0, 0.07, 0.14, 0.24]; // stages: on, off, on, on(new), fade
     this.add(0.55, (k) => {

@@ -5,7 +5,7 @@
  *  - 6 columns, 8 visible rows; each landing hits the top-most block of the
  *    column the player stands in, a high jump hits twice.
  *  - dirt 1 hit, stone 2, hard rock 3, gems (points scale with depth/level),
- *    bomb (clears 1-tile radius, chains), power-ups: drill, hammer, magnet.
+ *    bomb (clears 1-tile radius, chains), power-ups: drill (column), cross drill (row), hammer, magnet.
  *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
  *  - an exit tile sits in the bottom row; uncovering it finishes the level.
  *  - score only ever goes up (gems + break points × combo, level bonus).
@@ -21,9 +21,9 @@ export const TIME_BONUS = 5;
 /** time blocks per level: 2 in the first two levels, 3 from level 3 (deeper levels take longer) */
 export const timeBlocksFor = (level: number): number => (level >= 3 ? 3 : 2);
 
-export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hammer' | 'magnet' | 'clock' | 'exit';
-export type PowerKind = 'drill' | 'hammer' | 'magnet';
-export type Cause = 'hit' | 'bomb' | 'drill' | 'magnet' | 'cavein';
+export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hdrill' | 'hammer' | 'magnet' | 'clock' | 'exit';
+export type PowerKind = 'drill' | 'hdrill' | 'hammer' | 'magnet';
+export type Cause = 'hit' | 'bomb' | 'drill' | 'hdrill' | 'magnet' | 'cavein';
 
 export interface Block {
   kind: BlockKind;
@@ -47,12 +47,23 @@ export type MineEvent =
   | { type: 'exitReached'; col: number; row: number };
 
 const BREAK_POINTS: Record<BlockKind, number> = {
-  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hammer: 5, magnet: 5, clock: 5, exit: 0,
+  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hdrill: 5, hammer: 5, magnet: 5, clock: 5, exit: 0,
 };
 const GEM_BASE = [10, 20, 35, 60];
 
 export const comboMultiplier = (combo: number): number =>
   combo >= 20 ? 3 : combo >= 10 ? 2 : combo >= 5 ? 1.5 : 1;
+
+/** power-up mix (cumulative draw): both drill types equally often, together 44 % */
+export const POWER_MIX: [PowerKind, number][] = [['drill', 0.22], ['hdrill', 0.22], ['hammer', 0.28], ['magnet', 0.28]];
+/** level-generation probabilities per cell (d = relative depth 0..1 inside the level) */
+export const genProbs = (level: number, row: number, d: number) => ({
+  gem: Math.min(0.3, 0.17 + 0.025 * level),
+  bomb: 0.045,
+  power: 0.035,
+  hard: row === 0 ? 0 : Math.min(0.35, 0.03 + 0.1 * d + 0.04 * (level - 1)),
+  stone: 0.12 + 0.06 * d,
+});
 
 export const levelRows = (level: number): number => Math.min(22, 10 + 2 * level);
 export const levelBonus = (level: number): number => 100 * level;
@@ -115,14 +126,16 @@ export class MineGrid {
           continue;
         }
         const x = r();
-        const pGem = 0.1 + 0.02 * level;
-        const pBomb = 0.045;
-        const pPow = powerups < 2 + level ? 0.035 : 0;
-        const pHard = row === 0 ? 0 : Math.min(0.45, 0.04 + 0.14 * d + 0.05 * (level - 1));
-        const pStone = 0.25 + 0.1 * d;
+        const pr = genProbs(level, row, d);
+        const pGem = pr.gem;
+        const pBomb = pr.bomb;
+        const pPow = powerups < 2 + level ? pr.power : 0;
+        const pHard = pr.hard;
+        const pStone = pr.stone;
         let acc = pGem;
         if (x < acc) {
-          const q = r() + d * 0.35 + (level - 1) * 0.12;
+          // a bit better gems than before (+0.12): diamonds already show up in level 1–2
+          const q = r() + d * 0.35 + (level - 1) * 0.12 + 0.12;
           const gemType = q > 1.15 ? 3 : q > 0.85 ? 2 : q > 0.5 ? 1 : 0;
           const value = Math.round((GEM_BASE[gemType] * (1 + 0.25 * (level - 1)) * (1 + d)) / 5) * 5;
           line.push(makeBlock('gem', { gemType, gemValue: value }));
@@ -131,8 +144,10 @@ export class MineGrid {
         if (x < (acc += pBomb)) { line.push(makeBlock('bomb')); continue; }
         if (x < (acc += pPow)) {
           powerups++;
-          const kinds: PowerKind[] = ['drill', 'hammer', 'magnet'];
-          line.push(makeBlock(kinds[Math.floor(r() * 3)]));
+          const y = r();
+          let a = 0;
+          const kind = POWER_MIX.find(([, p]) => y < (a += p))?.[0] ?? 'magnet';
+          line.push(makeBlock(kind));
           continue;
         }
         if (x < (acc += pHard)) { line.push(makeBlock('hard')); continue; }
@@ -248,6 +263,12 @@ export class MineGrid {
         case 'drill':
           ev.push({ type: 'powerup', kind: 'drill', col: c, row: r });
           for (let nr = r + 1; nr < this.rows; nr++) if (this.cells[nr][c]) queue.push([c, nr, 'drill']);
+          break;
+        case 'hdrill':
+          // cross drill: clears the whole row, left and right
+          ev.push({ type: 'powerup', kind: 'hdrill', col: c, row: r });
+          for (let d = 1; d < COLS; d++)
+            for (const nc of [c - d, c + d]) if (nc >= 0 && nc < COLS && this.cells[r][nc]) queue.push([nc, r, 'hdrill']);
           break;
         case 'hammer':
           ev.push({ type: 'powerup', kind: 'hammer', col: c, row: r });

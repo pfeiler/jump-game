@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import type { GameContext, GameModule } from '../types';
 import { W, H } from '../types';
 import { MineGrid, COLS, VISIBLE_ROWS, type MineEvent, type Block, HAMMER_DURATION } from './grid';
+import { planGemPopups, GEM_POP_DURATION, type GemHit } from './popups';
 import { drawBlock, drawClock, drawGem, GEM_COLORS, KIND_COLORS } from './draw';
 import { ParticleSystem } from '../../core/particles';
 import { Tweens, floatText, label, easeOutBack, easeOutCubic } from '../../core/fx';
@@ -198,6 +199,26 @@ export class MineTime implements GameModule {
     }, () => t.destroy());
   }
 
+  /** short point pop-up at a gem's spot: pops in, floats up ~48 px and fades (0.7 s) */
+  private gemPopup(col: number, row: number, text: string, color: number, size: number, delay: number, combined = false): void {
+    const p = this.cellPos(col, row);
+    // combined pop-ups sit a bit lower (TNT's "BUMM!" is above the blast); keep clear of the HUD bar
+    const y0 = Math.max(GY + 52, p.y - 6 + (combined ? 34 : 0));
+    const t = label(text, size, color);
+    t.position.set(p.x, y0);
+    t.visible = false;
+    this.fxLayer.addChild(t);
+    const total = GEM_POP_DURATION + delay;
+    this.tw.add(total, (kk) => {
+      const k = (kk * total - delay) / GEM_POP_DURATION;
+      if (k < 0) return;
+      t.visible = true;
+      t.y = y0 - 48 * easeOutCubic(k);
+      t.scale.set(k < 0.18 ? 0.5 + easeOutBack(k / 0.18) * 0.65 : 1.15 - (k - 0.18) * 0.2);
+      t.alpha = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+    }, () => t.destroy());
+  }
+
   private flyGem(x: number, y: number, type: number): void {
     const g = new Graphics();
     drawGem(g, 0, 0, 14, type);
@@ -265,6 +286,9 @@ export class MineTime implements GameModule {
     let breaks = 0;
     let bombs = 0;
     let clocks = 0;
+    const gemHits: GemHit[] = [];
+    const hd = ev.find((e) => e.type === 'powerup' && e.kind === 'hdrill');
+    if (hd && hd.type === 'powerup') this.hdrillCol = hd.col;
     for (const e of ev) {
       switch (e.type) {
         case 'damage': {
@@ -283,7 +307,7 @@ export class MineTime implements GameModule {
           const color = KIND_COLORS[e.block.kind];
           const n = e.cause === 'hit' ? 14 : 7;
           this.particles.burst(p.x, p.y, color, n, { speed: e.cause === 'bomb' ? 9 : 6, size: 8 });
-          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : 0);
+          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : e.cause === 'hdrill' ? this.hdrillDelay(e.col) : 0);
           if (e.points >= 3 && e.cause === 'hit' && e.block.kind !== 'clock') floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y, 0xffffff, 26);
           if (e.cause === 'hit') this.ctx.shake(e.block.kind === 'hard' ? 9 : 5);
           break;
@@ -292,7 +316,7 @@ export class MineTime implements GameModule {
           const p = this.cellPos(e.col, e.row);
           this.particles.burst(p.x, p.y, GEM_COLORS[e.gemType], 10, { shape: 'gem', speed: 7, size: 8, up: 7 });
           this.particles.burst(p.x, p.y, 0xffffff, 8, { shape: 'spark', speed: 8, size: 6, life: 0.6 });
-          floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y - 10, GEM_COLORS[e.gemType], 40);
+          gemHits.push({ col: e.col, row: e.row, points: e.points, gemType: e.gemType });
           this.flyGem(p.x, p.y, e.gemType);
           sfx.gem(e.gemType);
           break;
@@ -312,13 +336,14 @@ export class MineTime implements GameModule {
           break;
         }
         case 'powerup': {
-          const txt = { drill: 'BOHRER!', hammer: 'SUPER-HAMMER!', magnet: 'MAGNET!' }[e.kind];
+          const txt = { drill: 'BOHRER!', hdrill: 'QUER-BOHRER!', hammer: 'SUPER-HAMMER!', magnet: 'MAGNET!' }[e.kind];
           this.banner(txt, 0xffe66b, 60);
           const p = this.cellPos(e.col, e.row);
           this.particles.burst(p.x, p.y, 0xffe66b, 16, { shape: 'spark', speed: 10, size: 7, life: 0.8 });
           if (e.kind === 'drill') this.drillLightning(e.col, e.row);
+          else if (e.kind === 'hdrill') this.hdrillLightning(e.col, e.row);
           else sfx.power();
-          this.ctx.shake(e.kind === 'drill' ? 16 : 6);
+          this.ctx.shake(e.kind === 'drill' || e.kind === 'hdrill' ? 16 : 6);
           break;
         }
         case 'time': {
@@ -347,6 +372,7 @@ export class MineTime implements GameModule {
           break;
       }
     }
+    for (const pop of planGemPopups(gemHits)) this.gemPopup(pop.col, pop.row, pop.text, GEM_COLORS[pop.gemType], pop.size, pop.delay, pop.combined);
     if (breaks) this.ctx.sfx.breakBlock(breaks > 3);
     else if (!ev.some((e) => e.type === 'damage' || e.type === 'empty')) sfx.hit();
     void player;
@@ -370,6 +396,28 @@ export class MineTime implements GameModule {
     // sparks running down the drilled column
     const p = this.cellPos(col, row);
     for (let r = 0; r < 5; r++) this.particles.burst(p.x, p.y + r * CELL_H, 0x9fd0ff, 3, { shape: 'spark', speed: 9, size: 6, life: 0.5 });
+    this.ctx.sfx.thunder();
+  }
+
+  /** column of the last cross drill (blocks break outwards from it) */
+  private hdrillCol = 0;
+  private hdrillDelay(col: number): number { return Math.abs(col - this.hdrillCol) * 0.045; }
+
+  /** Cross drill: lightning runs horizontally along the top and bottom edge of the row (from both sides). */
+  private hdrillLightning(col: number, row: number): void {
+    const p = this.cellPos(col, row);
+    const x0 = GX - 50, x1 = GX + COLS * CELL_W + 50;
+    const strikes: [number, number, number, number][] = [
+      [p.y - CELL_H / 2 + 6, x0, x1, 0], [p.y + CELL_H / 2 - 6, x1, x0, 0.06], [p.y, x0, x1, 0.18],
+    ];
+    for (const [y, a, b, delay] of strikes) {
+      this.vfx.lightning(y, a, b, () => {
+        if (this.destroyed) return;
+        this.particles.burst(b, y, 0xbfe3ff, 8, { shape: 'spark', speed: 12, size: 7, life: 0.55, up: 4 });
+      }, delay, true);
+    }
+    // sparks running along the row
+    for (let c = 0; c < COLS; c++) this.particles.burst(this.cellPos(c, row).x, p.y, 0x9fd0ff, 3, { shape: 'spark', speed: 9, size: 6, life: 0.5 });
     this.ctx.sfx.thunder();
   }
 
