@@ -71,6 +71,22 @@ export class Sfx {
     [1, 1.26, 1.5, 2].forEach((m, i) => this.tone(base * m, 0.18, 'sine', 0.16, i * 0.05));
   }
   bomb(): void { this.noise(0.9, 0.8, 700); this.tone(70, 0.6, 'sine', 0.5, 0, 30); }
+  /** big TNT blast: sharp crack + long rumble */
+  bigBoom(): void {
+    this.noise(0.25, 0.9, 5000, 0, 'highpass');
+    this.noise(1.0, 0.9, 900, 0.02);
+    this.tone(55, 0.9, 'sine', 0.6, 0, 25);
+    this.noise(0.8, 0.35, 300, 0.25);
+  }
+  /** lightning: crackle + delayed thunder */
+  thunder(): void {
+    this.noise(0.12, 0.6, 6000, 0, 'highpass');
+    this.noise(0.1, 0.5, 4000, 0.09, 'highpass');
+    this.noise(0.9, 0.6, 500, 0.12);
+    this.tone(48, 0.7, 'sine', 0.35, 0.12, 30);
+  }
+  pauseIn(): void { [784, 659, 523].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.12, i * 0.08)); }
+  armsTick(): void { this.tone(880, 0.05, 'square', 0.06); }
   power(): void { this.tone(300, 0.35, 'sawtooth', 0.15, 0, 1200); this.tone(600, 0.3, 'square', 0.08, 0.1, 1800); }
   combo(n: number): void { this.tone(400 + Math.min(n, 20) * 40, 0.08, 'square', 0.08); }
   select(): void { this.tone(660, 0.07, 'square', 0.12); }

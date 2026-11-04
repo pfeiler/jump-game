@@ -29,6 +29,7 @@ npm run preview    # http://localhost:4173/jump-game/
 | Sprung (= 1 Schlag) | springen, Landung zählt | Leertaste / W / ↑ |
 | Hochsprung (= doppelter Schlag) | lange Flugzeit (≥ 0,5 s) | Shift + Leertaste / E / ↓ |
 | Menüfeld aktivieren | übers Feld stellen und springen | Enter / Klick |
+| Weiter nach der Level-Pause | beide Arme über den Kopf heben und ~0,65 s halten (nicht springen) | Enter / Leertaste |
 | 2 Spieler | linke / rechte Bildhälfte | P1: A/D + W (E hoch), P2: ←/→ + ↑ (↓ hoch) |
 | Debug-Overlay | – | **B** oder F2 |
 | Ton an/aus | – | M |
@@ -60,7 +61,15 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 * Edelsteine werden mit der Tiefe wertvoller.
 * Bomben räumen den Radius 1 frei und lösen Kettenreaktionen aus.
 * Power-ups: **Bohrer** (ganze Spalte), **Hammer** (8 s lang jeder Schlag zählt doppelt), **Magnet** (sammelt alle sichtbaren Edelsteine).
-* Ausgangsfeld ⬇ → nächstes, tieferes Zufallslevel (+ Level-Bonus).
+* Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, aufquellende Rauch-/Staubwolken,
+  Bildschirmwackeln, „BUMM!“); **Bohrer** = Blitze schlagen links und rechts ein (gezackt, weiß/blau, Bildschirm-Flackern,
+  Funken am Einschlag). Rauch/Feuer sind wenige weiche Sprites (max. 140 gleichzeitig), keine Physik – die Pose-Erkennung behält ihr Budget.
+* Ausgangsfeld ⬇ → **Pause** mit Level-Ergebnis und Vorschau aufs nächste, tiefere Zufallslevel (+ Level-Bonus).
+  Weiter geht's, wenn ein Spieler beide Arme hochhebt (Handgelenke klar über Schultern oder Kopf) und das ~0,65 s hält –
+  ein Ring füllt sich dabei. Gegen Fehlauslösung: erst 1 s nach Erscheinen aktiv, Fortschritt fällt beim Senken zurück,
+  und er wird zurückgesetzt, solange der Sprungautomat „in der Luft“ meldet oder sich die Schulterlinie in der letzten
+  Sekunde um mehr als 0,12 Rumpflängen bewegt hat. Im 2-Spieler-Modus reicht ein Spieler. Ohne Kamera (`?nocam`):
+  Enter / Leertaste (Tastendrücke in den ersten 0,6 s werden ignoriert). Zeit und Hammer laufen in der Pause nicht weiter.
 * 2 Minuten Zeit. Punkte = Edelsteine + Tiefenbonus × Combo-Multiplikator (×1,5 ab 5, ×2 ab 10, ×3 ab 20 Treffern in Folge).
   Es gibt **keine Abzüge und kein Verlieren**.
 * Am Ende: Vorname/Initialen (max. 10 Zeichen) eintragen → lokale Highscore-Liste.
@@ -80,8 +89,9 @@ src/
   input/players.ts       Hüftmitte + Körpergröße aus Landmarks, Zuordnung der Personen zu Spielern
   input/jumpDetector.ts  Zustandsautomat GROUNDED → TAKEOFF → AIRBORNE/APEX → LANDING
   input/oneEuro.ts       One-Euro-Filter
+  input/armsUp.ts        Arme-hoch-Geste + Halte-Timer + Stillstands-Prüfung (Level-Pause)
   input/inputManager.ts  vereinheitlicht Kamera + Tastatur/Maus → {x, landings[]} pro Spieler
-  core/                  Partikel (Rapier2D), Sound (WebAudio-Synth), Tweens/Effekte, Highscores (localStorage)
+  core/                  Partikel (Rapier2D), vfx.ts (Explosion, Rauch, Blitze, Bildschirmblitz), Sound (WebAudio-Synth), Tweens/Effekte, Highscores (localStorage)
   debug.ts               Debug-Overlay
 ```
 
@@ -160,15 +170,20 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – 31 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Wipper/Hochsprünge/Personenverlust, Mine-Time-Logik, Spielerzuordnung).
+* `npm test` – 50 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Wipper/Hochsprünge/Personenverlust, Mine-Time-Logik, Spielerzuordnung,
+  Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
+* `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
+* `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.
 * `node scripts/camtest.mjs` – Durchlauf mit künstlicher Kamera (`Y4M=/pfad/video.y4m`, `QS='&model=lite&delegate=cpu'`).
 
 ## Bekannte Grenzen
 
 * Noch nicht mit einer echten Kamera und einem echten Kind auf dem Trampolin getestet – Schwellenwerte sind
   aus Physik + synthetischen Tests abgeleitet und müssen ggf. nachjustiert werden.
+* Die Arme-hoch-Geste wurde mit dem echten Pose-Modell nur auf Standbildern/Videos in Headless-Chrome (~3 fps) geprüft,
+  nicht mit einer Person vor einer echten Kamera.
 * Bei niedriger Pose-Bildrate (< 10 fps) werden kurze Sprünge verpasst und Flugzeiten überschätzt.
 * Die Pose-Maske ist grob (Kanten, Haare); für schöne Freisteller siehe Profi-Stack.
 * Das JS-Bundle ist groß (~3,7 MB, v. a. Rapier-WASM inline + Pixi); erster Start lädt zusätzlich ~25 MB Modell+WASM (danach Browser-Cache).

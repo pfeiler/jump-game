@@ -5,6 +5,8 @@ import { MineGrid, COLS, VISIBLE_ROWS, type MineEvent, type Block, HAMMER_DURATI
 import { drawBlock, drawGem, GEM_COLORS, KIND_COLORS } from './draw';
 import { ParticleSystem } from '../../core/particles';
 import { Tweens, floatText, label, easeOutBack, easeOutCubic } from '../../core/fx';
+import { Vfx } from '../../core/vfx';
+import { armsUp, ArmsUpHold, StillnessCheck, upperBody } from '../../input/armsUp';
 
 const CELL_W = 110;
 const CELL_H = 74;
@@ -48,6 +50,14 @@ export class MineTime implements GameModule {
   private hits = 0;
   private highJumps = 0;
   private destroyed = false;
+  private vfx!: Vfx;
+  private pauseLayer = new Container();
+  private pause: {
+    hold: ArmsUpHold; still: StillnessCheck[]; ring: Graphics; status: Text; t: number; closing: boolean; camera: boolean;
+    onKey: (e: KeyboardEvent) => void; level: number;
+  } | null = null;
+  private gemsAtLevelStart = 0;
+  private scoreAtLevelStart = 0;
 
   init(ctx: GameContext): void {
     this.ctx = ctx;
@@ -82,7 +92,8 @@ export class MineTime implements GameModule {
     }
 
     this.particles = new ParticleSystem(W, H - 4);
-    this.layer.addChild(this.fxLayer, this.particles.container, this.hud);
+    this.vfx = new Vfx(W, H);
+    this.layer.addChild(this.vfx.container, this.fxLayer, this.particles.container, this.hud, this.vfx.flashLayer, this.pauseLayer);
 
     // HUD
     const hudBg = new Graphics().roundRect(10, 8, W - 20, 82, 20).fill({ color: 0x140a24, alpha: 0.7 });
@@ -202,6 +213,7 @@ export class MineTime implements GameModule {
   private onEvents(ev: MineEvent[], player: number): void {
     const sfx = this.ctx.sfx;
     let breaks = 0;
+    let bombs = 0;
     for (const e of ev) {
       switch (e.type) {
         case 'damage': {
@@ -235,16 +247,17 @@ export class MineTime implements GameModule {
           break;
         }
         case 'bomb': {
+          // first TNT of a chain gets the full blast, chained ones are a bit smaller (keeps it readable and cheap)
           const p = this.cellPos(e.col, e.row);
-          this.particles.burst(p.x, p.y, 0xff8a1f, 22, { shape: 'spark', speed: 14, size: 10, life: 0.9 });
-          this.particles.burst(p.x, p.y, 0xffe066, 14, { shape: 'spark', speed: 9, size: 7, life: 0.7 });
-          const flash = new Graphics().circle(0, 0, CELL_W * 1.6).fill({ color: 0xffd27a, alpha: 0.8 });
-          flash.position.set(p.x, p.y);
-          this.fxLayer.addChild(flash);
-          this.tw.add(0.35, (k) => { flash.alpha = 1 - k; flash.scale.set(0.6 + k * 0.6); }, () => flash.destroy());
-          floatText(this.fxLayer, this.tw, 'BUMM!', p.x, p.y, 0xff8a1f, 52);
-          sfx.bomb();
-          this.ctx.shake(22);
+          const first = bombs++ === 0;
+          this.vfx.explosion(p.x, p.y, first ? 1 : 0.6);
+          this.particles.burst(p.x, p.y, 0xff8a1f, first ? 18 : 8, { shape: 'spark', speed: 16, size: 10, life: 0.9 });
+          this.particles.burst(p.x, p.y, 0x6b4a2a, first ? 12 : 5, { speed: 12, size: 10, up: 8 });
+          if (first) {
+            floatText(this.fxLayer, this.tw, 'BUMM!', p.x, p.y - 20, 0xff8a1f, 72);
+            sfx.bigBoom();
+            this.ctx.shake(34);
+          } else this.ctx.shake(26);
           break;
         }
         case 'powerup': {
@@ -252,8 +265,9 @@ export class MineTime implements GameModule {
           this.banner(txt, 0xffe66b, 60);
           const p = this.cellPos(e.col, e.row);
           this.particles.burst(p.x, p.y, 0xffe66b, 16, { shape: 'spark', speed: 10, size: 7, life: 0.8 });
-          sfx.power();
-          this.ctx.shake(e.kind === 'drill' ? 14 : 6);
+          if (e.kind === 'drill') this.drillLightning(e.col, e.row);
+          else sfx.power();
+          this.ctx.shake(e.kind === 'drill' ? 16 : 6);
           break;
         }
         case 'combo':
@@ -279,6 +293,27 @@ export class MineTime implements GameModule {
     void player;
   }
 
+  /** Drill power-up: lightning strikes down along both sides of the column and both sides of the cave. */
+  private drillLightning(col: number, row: number): void {
+    const bottom = GY + VISIBLE_ROWS * CELL_H;
+    const left = GX + col * CELL_W + 10, right = GX + (col + 1) * CELL_W - 10;
+    const strikes: [number, number, number][] = [
+      [left, bottom, 0], [right, bottom, 0.06],
+      [GX - 40, H - 30, 0.16], [GX + COLS * CELL_W + 40, H - 30, 0.22],
+    ];
+    for (const [x, y1, delay] of strikes) {
+      this.vfx.lightning(x, 0, y1, () => {
+        if (this.destroyed) return;
+        this.particles.burst(x, y1 - 6, 0xbfe3ff, 10, { shape: 'spark', speed: 13, size: 7, life: 0.6, up: 6 });
+        this.particles.burst(x, y1 - 6, 0xffffff, 6, { shape: 'spark', speed: 8, size: 5, life: 0.45, up: 4 });
+      }, delay);
+    }
+    // sparks running down the drilled column
+    const p = this.cellPos(col, row);
+    for (let r = 0; r < 5; r++) this.particles.burst(p.x, p.y + r * CELL_H, 0x9fd0ff, 3, { shape: 'spark', speed: 9, size: 6, life: 0.5 });
+    this.ctx.sfx.thunder();
+  }
+
   private hint(text: string): void {
     this.hintText.text = text;
     this.hintText.alpha = 1;
@@ -286,16 +321,116 @@ export class MineTime implements GameModule {
   }
 
   private onExit(c: number, r: number): void {
+    if (this.advancing) return;
     this.advancing = true;
     this.ctx.sfx.level();
     const p = this.cellPos(c, r);
     this.particles.burst(p.x, p.y, 0x2bd96b, 30, { shape: 'spark', speed: 12, size: 9, life: 1.2 });
     this.banner('AUSGANG GEFUNDEN!', 0x7dffa8, 64);
-    this.tw.add(1.7, () => {}, () => {
-      if (this.ended) return;
-      const bonus = this.grid.advanceLevel();
+    this.tw.add(1.4, () => {}, () => {
+      if (this.ended || this.destroyed) return;
+      this.showPause();
+    });
+  }
+
+  private get cameraActive(): boolean {
+    const cam = this.ctx.input.camera;
+    return !!cam && cam.status.state === 'running';
+  }
+
+  /** Pause between levels: shows the result and waits for "both arms up" (or Enter/Space). */
+  private pauseStartedAt = 0;
+  private showPause(): void {
+    this.pauseStartedAt = performance.now() / 1000;
+    const done = this.grid.level;
+    const gems = this.grid.gems - this.gemsAtLevelStart;
+    const bonus = this.grid.advanceLevel(); // score already includes the bonus; cells are rebuilt on continue
+    const levelPoints = this.grid.score - this.scoreAtLevelStart;
+    this.ctx.sfx.pauseIn();
+    const L = this.pauseLayer;
+    const dim = new Graphics().rect(0, 0, W, H).fill({ color: 0x0b0618, alpha: 0.72 });
+    const PW = 880, PH = 500, PX = (W - PW) / 2, PY = 120;
+    const panel = new Graphics().roundRect(PX, PY, PW, PH, 32).fill({ color: 0x24143f, alpha: 0.96 }).stroke({ width: 6, color: 0xffe66b });
+    const title = label(`Level ${done} geschafft! 🎉`, 58, 0xffe66b);
+    title.position.set(W / 2, PY + 62);
+    const l1 = label(`${gems} Edelsteine  ·  ${levelPoints} Punkte (inkl. +${bonus} Tiefenbonus)`, 28, 0xffffff);
+    l1.position.set(W / 2, PY + 128);
+    const l2 = label(`Als Nächstes: Level ${this.grid.level} – noch tiefer! ⛏`, 32, 0x7dffa8);
+    l2.position.set(W / 2, PY + 176);
+    const camera = this.cameraActive;
+    const ring = new Graphics();
+    ring.position.set(W / 2, PY + 300);
+    const icon = label(camera ? '🙌' : '⌨️', 64, 0xffffff, { stroke: { width: 0, color: 0 } });
+    icon.position.set(W / 2, PY + 300);
+    const hint = label(camera ? 'Arme hochheben zum Weitermachen 🙌' : 'Drücke Enter oder Leertaste zum Weitermachen', camera ? 36 : 32, 0xffffff);
+    hint.position.set(W / 2, PY + 410);
+    const status = label(camera ? 'oder Enter / Leertaste drücken' : '', 22, 0xc8c0e0, { fontWeight: '700' });
+    status.position.set(W / 2, PY + 458);
+    L.addChild(dim, panel, title, l1, l2, ring, icon, hint, status);
+    L.alpha = 0;
+    L.visible = true;
+    this.tw.add(0.3, (k) => { L.alpha = k; panel.scale.set(1); });
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') && (this.pause?.t ?? 0) > 0.6) { e.preventDefault(); this.continueFromPause(); }
+    };
+    window.addEventListener('keydown', onKey);
+    this.pause = { hold: new ArmsUpHold(), still: [new StillnessCheck(), new StillnessCheck()], ring, status, t: 0, closing: false, camera, onKey, level: this.grid.level };
+  }
+
+  private updatePause(dt: number, now: number): void {
+    const P = this.pause;
+    if (!P || P.closing) return;
+    P.t += dt;
+    let anyUp = false;
+    let grounded = true;
+    if (this.cameraActive) {
+      for (let i = 0; i < this.ctx.players; i++) {
+        const tp = this.ctx.input.tracked[i];
+        if (!tp.visible) { P.still[i].reset(); continue; }
+        // shoulder line must stay still (second jump guard, independent of the jump detector)
+        const ub = upperBody(tp.landmarks);
+        const quiet = ub ? P.still[i].update(now, ub.y, ub.torso) : false;
+        if (!anyUp && armsUp(tp.landmarks)) {
+          anyUp = true;
+          const st = tp.detector.state;
+          grounded = quiet && st !== 'AIRBORNE' && st !== 'APEX' && st !== 'TAKEOFF';
+        }
+      }
+      const before = P.hold.progress;
+      if (P.hold.update(now, anyUp, grounded)) { this.continueFromPause(); return; }
+      if (Math.floor(P.hold.progress * 4) > Math.floor(before * 4)) this.ctx.sfx.armsTick();
+      P.status.text = P.t < 1 ? 'Gleich geht\u2019s weiter …' : !grounded ? 'Nicht springen – Arme oben halten!' : anyUp ? 'Super – Arme oben halten!' : 'oder Enter / Leertaste drücken';
+      P.status.style.fill = anyUp && grounded ? 0x7dff8a : 0xc8c0e0;
+    }
+    // progress ring
+    const pr = P.camera ? P.hold.progress : 0;
+    const g = P.ring.clear();
+    g.circle(0, 0, 64).fill({ color: 0x140a24, alpha: 0.9 }).stroke({ width: 12, color: 0x3a2a5a });
+    if (pr > 0) g.arc(0, 0, 64, -Math.PI / 2, -Math.PI / 2 + pr * Math.PI * 2).stroke({ width: 12, color: 0x7dff8a, cap: 'round' });
+    P.ring.scale.set(1 + 0.04 * Math.sin(P.t * 5) + pr * 0.12);
+    // keep landings from piling up while paused
+    this.ctx.input.flush();
+  }
+
+  private continueFromPause(): void {
+    const P = this.pause;
+    if (!P || P.closing || this.destroyed) return;
+    P.closing = true;
+    window.removeEventListener('keydown', P.onKey);
+    // the hammer power-up does not run out while the game is paused
+    const pausedFor = performance.now() / 1000 - this.pauseStartedAt;
+    if (this.grid.hammerUntil > this.pauseStartedAt) this.grid.hammerUntil += pausedFor;
+    this.ctx.sfx.confirm();
+    P.ring.clear().circle(0, 0, 64).fill({ color: 0x2ecc71, alpha: 0.95 }).stroke({ width: 12, color: 0x7dff8a });
+    this.tw.add(0.35, (k) => { this.pauseLayer.alpha = 1 - k; }, () => {
+      if (this.destroyed) return;
+      this.pauseLayer.removeChildren().forEach((c) => c.destroy());
+      this.pauseLayer.visible = false;
+      this.pause = null;
+      this.gemsAtLevelStart = this.grid.gems;
+      this.scoreAtLevelStart = this.grid.score;
       this.buildCells(true);
-      this.banner(`Level ${this.grid.level}  +${bonus} Tiefenbonus`, 0xffe66b, 52);
+      this.banner(`Level ${this.grid.level} – Los!`, 0xffe66b, 60);
       this.advancing = false;
       this.ctx.input.flush();
     });
@@ -319,6 +454,8 @@ export class MineTime implements GameModule {
     this.tw.update(dt);
     if (this.destroyed) return;
     this.particles.update(dt);
+    this.vfx.update(dt);
+    if (this.pause) this.updatePause(dt, now);
 
     if (!this.ended && !this.advancing) {
       this.timeLeft = Math.max(0, this.timeLeft - dt);
@@ -404,12 +541,18 @@ export class MineTime implements GameModule {
 
   /** for tests / debugging */
   get state() {
-    return { score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, cols: this.cols };
+    return {
+      score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, cols: this.cols,
+      paused: !!this.pause, pauseProgress: this.pause?.hold.progress ?? 0, vfx: { ...this.vfx.stats, active: this.vfx.active },
+    };
   }
 
   destroy(): void {
     this.destroyed = true;
+    if (this.pause) window.removeEventListener('keydown', this.pause.onKey);
+    this.pause = null;
     this.tw.clear();
+    this.vfx.destroy();
     this.particles.destroy();
     this.layer.destroy({ children: true });
   }
