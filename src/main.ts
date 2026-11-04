@@ -33,6 +33,7 @@ class App {
   private camVersion = -1;
   private fps = 60;
   private cameraMsg = '';
+  cameraFailed = false;
 
   async init(): Promise<void> {
     await this.pixi.init({
@@ -65,8 +66,11 @@ class App {
     window.addEventListener('keydown', () => this.sfx.unlock());
 
     this.pixi.ticker.add((tk) => this.tick(tk.deltaMS / 1000));
-    this.setScene(new StartScene(() => this.onStart()));
+    this.setScene(new StartScene(() => this.onStart(), this.input, () => this.startInfo()));
     (window as unknown as { __jump: unknown }).__jump = this;
+    // getUserMedia needs no user gesture (only audio does) → start the camera right away,
+    // so the start screen already shows the live image and tracking keeps running afterwards.
+    void this.startCamera();
   }
 
   /** where the 1280×720 stage and the camera image are on screen (CSS px) */
@@ -78,9 +82,24 @@ class App {
     return { x, y, w, h, camX: x + sp.x * s, camY: y + sp.y * s, camW: sp.width * s, camH: sp.height * s };
   }
 
-  private async onStart(): Promise<void> {
+  private onStart(): void {
     this.sfx.unlock();
     this.goMenu();
+  }
+
+  /** info for the start screen: camera state + where the camera image is on the stage */
+  startInfo() {
+    const c = this.camera;
+    const state: 'off' | 'starting' | 'running' | 'error' = this.cameraFailed ? 'error' : this.camSprite && c ? 'running' : c ? 'starting' : 'off';
+    return {
+      state,
+      message: state === 'starting' ? (c?.status.message || this.cameraMsg) : this.cameraMsg,
+      players: this.players,
+      cam: this.camSprite ? { x: this.camSprite.x, y: this.camSprite.y, w: this.camSprite.width, h: this.camSprite.height } : null,
+    };
+  }
+
+  private async startCamera(): Promise<void> {
     if (params.get('nocam') === '1') { this.cameraMsg = 'Kamera aus (?nocam=1) – Tastatur-Modus'; return; }
     const model = params.get('model') === 'lite' ? 'lite' : 'full';
     const cam = new CameraTracker({
@@ -110,7 +129,13 @@ class App {
       cam.stop();
       this.camera = null;
       this.input.camera = null;
-      this.cameraMsg = `Keine Kamera (${(e as Error).message ?? e}) – Tastatur-Modus`;
+      const err = e as Error;
+      const denied = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
+      const none = err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError';
+      this.cameraMsg = denied ? 'Kamera nicht erlaubt – kein Problem, du kannst mit der Tastatur spielen!'
+        : none ? 'Keine Kamera gefunden – kein Problem, du kannst mit der Tastatur spielen!'
+        : `Kamera geht gerade nicht (${err?.message ?? e}) – spiel einfach mit der Tastatur!`;
+      this.cameraFailed = true;
     }
   }
 
@@ -176,7 +201,7 @@ class App {
         this.camSprite.texture.source.update();
       }
       let want = this.scene?.cameraAlpha ?? 0;
-      if (!this.camera.status.segmentation) want *= 0.4; // raw video: keep it subtle
+      if (!this.camera.status.segmentation) want = this.scene?.rawCameraAlpha ?? want * 0.4; // raw video: keep it subtle
       this.camSprite.alpha += (want - this.camSprite.alpha) * Math.min(1, dt * 4);
     }
     const sc = this.scene;

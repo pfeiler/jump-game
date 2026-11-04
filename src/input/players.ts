@@ -95,3 +95,10 @@ export function assignPoses(hips: HipSample[], prev: (number | null)[], players:
   }
   return out;
 }
+
+/** Is the whole body (head to feet) inside the image? */
+export function fullyInFrame(lm: Landmark[] | null): boolean {
+  if (!lm || lm.length < 33) return false;
+  const pts = [0, 11, 12, 23, 24, 27, 28].map((k) => lm[k]);
+  return pts.every((p) => p.v > 0.5 && p.x > 0.01 && p.x < 0.99 && p.y > 0.01 && p.y < 0.99);
+}

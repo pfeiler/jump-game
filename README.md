@@ -33,8 +33,11 @@ npm run preview    # http://localhost:4173/jump-game/
 | Debug-Overlay | – | **B** oder F2 |
 | Ton an/aus | – | M |
 
-Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe) und fragt die Kamera an. Ohne Kamera
-läuft alles per Tastatur.
+Die Kamera wird schon beim Laden der Seite angefragt (dafür ist keine Nutzer-Geste nötig): Der Startbildschirm
+zeigt das gespiegelte Live-Bild mit Freisteller und Skelett, den Hinweis „Stell dich so hin, dass du ganz im Bild bist“
+und einen grünen Haken „Spieler 1 erkannt ✓“, sobald Kopf bis Füße zu sehen sind. Kamera und Pose-Tracking laufen
+danach ohne Neustart durch Menü, Kalibrierung und Spiel. Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe).
+Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis und alles läuft per Tastatur.
 
 ### URL-Parameter
 
@@ -157,8 +160,9 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – 28 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Wipper/Hochsprünge/Personenverlust, Mine-Time-Logik, Spielerzuordnung).
+* `npm test` – 31 vitest-Tests (One-Euro-Filter, Sprungautomat inkl. kleiner Wipper/Hochsprünge/Personenverlust, Mine-Time-Logik, Spielerzuordnung).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
+* `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/camtest.mjs` – Durchlauf mit künstlicher Kamera (`Y4M=/pfad/video.y4m`, `QS='&model=lite&delegate=cpu'`).
 
 ## Bekannte Grenzen
