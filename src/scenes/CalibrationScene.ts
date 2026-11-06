@@ -34,7 +34,7 @@ export class CalibrationScene implements Scene {
     private onJumpCalib?: () => void,
   ) {
     this.camera = input.cameraRunning;
-    const title = label(this.camera ? 'Kurz stillstehen!' : 'Tastatur-Modus', 72, 0xffe66b);
+    const title = label(this.camera ? 'Kurz stillstehen!' : 'Ohne Kamera', 72, 0xffe66b);
     title.position.set(W / 2, 80);
     this.msg = label('', 32, 0xffffff, { wordWrap: true, wordWrapWidth: 1100 });
     this.msg.position.set(W / 2, 160);
@@ -43,7 +43,7 @@ export class CalibrationScene implements Scene {
     this.info.position.set(W / 2, 600);
     this.container.addChild(title, this.msg, this.ring, this.info);
     if (!this.camera) {
-      this.msg.text = '←/→ oder Maus = Spalte wählen · Leertaste = Landung (1 Treffer) · Shift+Leertaste = Hochsprung (2 Treffer)';
+      this.msg.text = 'In der Runde gräbst du nur mit der Kamera. Enter überspringt diese Anzeige.';
     }
     const skip = label(this.camera && this.onJumpCalib ? 'Enter = überspringen · C = Sprünge kalibrieren' : 'Enter = überspringen', 20, 0xc8c0e0, { fontWeight: '600' });
     skip.position.set(W / 2, H - 30);

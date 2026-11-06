@@ -33,6 +33,11 @@ export class InputManager {
   keyListeners = new Set<(e: KeyboardEvent) => void>();
   /** when true, game keys (space/arrows) are not interpreted as jumps (name entry) */
   textMode = false;
+  /**
+   * While a round is running, keyboard and mouse must not dig, jump, or move the column.
+   * Menu, calibration and name entry leave this false.
+   */
+  gameplay = false;
   /** bodies currently visible (0–2). Not a player count. */
   peopleInFrame = 0;
   private crowdState: CrowdClock = idleCrowd();
@@ -41,6 +46,7 @@ export class InputManager {
     this.tracked = new TrackedPlayer(cfg);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('mousemove', (e) => {
+      if (this.gameplay) return;
       const r = (e.target as HTMLElement)?.closest?.('canvas')?.getBoundingClientRect();
       if (!r) return;
       this.kbX = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
@@ -100,6 +106,11 @@ export class InputManager {
   private onKeyDown = (e: KeyboardEvent): void => {
     for (const l of [...this.keyListeners]) l(e);
     if (this.textMode || e.repeat) return;
+    // in a round, these keys must not remove blocks or steer the column
+    if (this.gameplay) {
+      if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+      return;
+    }
     switch (e.code) {
       case 'KeyA': case 'ArrowLeft': this.move(-1); e.preventDefault(); break;
       case 'KeyD': case 'ArrowRight': this.move(1); e.preventDefault(); break;
@@ -123,10 +134,10 @@ export class InputManager {
     const tp = this.tracked;
     const camActive = this.cameraRunning && tp.visible;
     const kbRecent = now - this.lastKbT < 3;
-    const useCam = camActive && !kbRecent;
-    // a second person must not land a camera jump; keyboard input still comes through
+    const useCam = this.gameplay ? camActive : camActive && !kbRecent;
+    // a second person must not land a camera jump; keyboard jumps are only for menus
     const camLandings = this.cameraRunning && !this.crowd ? tp.pending : [];
-    const landings = [...this.kbEvents, ...camLandings];
+    const landings = [...(this.gameplay ? [] : this.kbEvents), ...camLandings];
     this.kbEvents = [];
     tp.pending = [];
     return [{

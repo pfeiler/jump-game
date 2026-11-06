@@ -11,7 +11,7 @@ export class GameScene implements Scene {
   game: GameModule;
   private ready = false;
 
-  constructor(def: GameDefinition, input: InputManager, sfx: Sfx, shake: (a: number) => void, onEnd: (r: GameResult) => void) {
+  constructor(def: GameDefinition, private input: InputManager, sfx: Sfx, shake: (a: number) => void, onEnd: (r: GameResult) => void) {
     this.game = def.create();
     let ended = false;
     const ctx: GameContext = {
@@ -21,6 +21,7 @@ export class GameScene implements Scene {
       shake,
       end: (r) => { if (!ended) { ended = true; onEnd(r); } },
     };
+    input.gameplay = true;
     input.kbStep = 1 / 6;
     input.flush();
     void Promise.resolve(this.game.init(ctx)).then(() => { this.ready = true; });
@@ -31,6 +32,7 @@ export class GameScene implements Scene {
   }
 
   destroy(): void {
+    this.input.gameplay = false;
     this.game.destroy();
     this.container.destroy({ children: true });
   }

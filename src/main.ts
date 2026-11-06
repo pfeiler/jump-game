@@ -125,7 +125,7 @@ class App {
   }
 
   private async startCamera(): Promise<void> {
-    if (params.get('nocam') === '1') { this.cameraMsg = 'Kamera aus (?nocam=1) – Tastatur-Modus'; return; }
+    if (params.get('nocam') === '1') { this.cameraMsg = 'Kamera aus (?nocam=1) – Graben braucht die Kamera'; return; }
     const model = params.get('model') === 'lite' ? 'lite' : 'full';
     const cam = new CameraTracker({
       modelUrl: abs(`models/pose_landmarker_${model}.task`),
@@ -157,9 +157,9 @@ class App {
       const err = e as Error;
       const denied = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
       const none = err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError';
-      this.cameraMsg = denied ? 'Kamera nicht erlaubt – kein Problem, du kannst mit der Tastatur spielen!'
-        : none ? 'Keine Kamera gefunden – kein Problem, du kannst mit der Tastatur spielen!'
-        : `Kamera geht gerade nicht (${err?.message ?? e}) – spiel einfach mit der Tastatur!`;
+      this.cameraMsg = denied ? 'Kamera nicht erlaubt – zum Graben brauchen wir die Kamera.'
+        : none ? 'Keine Kamera gefunden – zum Graben brauchen wir die Kamera.'
+        : `Kamera geht gerade nicht (${err?.message ?? e}) – zum Graben brauchen wir die Kamera.`;
       this.cameraFailed = true;
     }
   }
@@ -167,7 +167,7 @@ class App {
   cameraStatus(): string {
     if (this.cameraMsg) return this.cameraMsg;
     const c = this.camera;
-    if (!c) return 'Tastatur-Modus';
+    if (!c) return 'Keine Kamera – Graben braucht die Kamera';
     const s = c.status;
     const who = this.input.tracked.visible ? 'erkannt ✓' : 'nicht im Bild';
     return `Kamera aktiv (${s.mode === 'worker' ? 'Web Worker' : 'Hauptthread'}, ${s.delegate}${s.segmentation ? ', Ausschnitt' : ''}) · ${who}`;

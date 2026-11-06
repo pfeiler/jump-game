@@ -73,7 +73,7 @@ export class StartScene implements Scene {
   /** current status line + whether everyone is ready (for tests / UI) */
   get readiness(): { text: string; ok: boolean } {
     const info = this.info();
-    if (info.state === 'off' || info.state === 'error') return { text: info.message || 'Tastatur-Modus', ok: false };
+    if (info.state === 'off' || info.state === 'error') return { text: info.message || 'Keine Kamera', ok: false };
     if (info.state === 'starting') return { text: info.message || 'Kamera wird gestartet …', ok: false };
     const p = this.input.tracked;
     if (!p.visible) return { text: 'Stell dich so hin, dass du ganz im Bild bist', ok: false };
