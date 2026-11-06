@@ -9,12 +9,11 @@ import { fullyInFrame } from '../input/players';
 export interface StartInfo {
   state: 'off' | 'starting' | 'running' | 'error';
   message: string;
-  players: number;
   /** camera sprite rect in stage coordinates (mirrored image) */
   cam: { x: number; y: number; w: number; h: number } | null;
 }
 
-const PLAYER_COLORS = [0x4fd1ff, 0xff8a3d];
+const PLAYER_COLOR = 0x4fd1ff;
 
 export class StartScene implements Scene {
   readonly name = 'start';
@@ -76,17 +75,10 @@ export class StartScene implements Scene {
     const info = this.info();
     if (info.state === 'off' || info.state === 'error') return { text: info.message || 'Tastatur-Modus', ok: false };
     if (info.state === 'starting') return { text: info.message || 'Kamera wird gestartet …', ok: false };
-    const parts: string[] = [];
-    let ok = true;
-    for (let i = 0; i < info.players; i++) {
-      const p = this.input.tracked[i];
-      const who = info.players > 1 ? `Spieler ${i + 1}` : 'Spieler 1';
-      if (!p.visible) { ok = false; parts.push(info.players > 1 ? `${who}: noch nicht im Bild` : ''); }
-      else if (!fullyInFrame(p.landmarks)) { ok = false; parts.push(`${who}: Geh etwas zurück – Kopf und Füße ins Bild!`); }
-      else parts.push(`${who} erkannt ✓`);
-    }
-    if (info.players === 1 && !this.input.tracked[0].visible) return { text: 'Stell dich so hin, dass du ganz im Bild bist', ok: false };
-    return { text: parts.join('   ·   '), ok };
+    const p = this.input.tracked;
+    if (!p.visible) return { text: 'Stell dich so hin, dass du ganz im Bild bist', ok: false };
+    if (!fullyInFrame(p.landmarks)) return { text: 'Geh etwas zurück – Kopf und Füße ins Bild!', ok: false };
+    return { text: 'Du bist im Bild ✓', ok: true };
   }
 
   update(dt: number): void {
@@ -101,7 +93,7 @@ export class StartScene implements Scene {
     const cam = info.state === 'running' || info.state === 'starting';
     this.calibHint.text = cam ? 'C = Sprünge kalibrieren' : '';
     const r = this.readiness;
-    const anyVisible = info.state === 'running' && this.input.tracked.slice(0, info.players).some((p) => p.visible);
+    const anyVisible = info.state === 'running' && this.input.tracked.visible;
     const color = info.state === 'error' ? 0xffc46b : r.ok ? 0x7dff8a : anyVisible ? 0xffe66b : 0xffffff;
     if (r.text !== this.lastText) { this.status.text = r.text; this.lastText = r.text; }
     this.status.style.fill = color;
@@ -126,11 +118,10 @@ export class StartScene implements Scene {
     const g = this.skeleton.clear();
     if (info.cam) {
       const c = info.cam;
-      for (let i = 0; i < info.players; i++) {
-        const p = this.input.tracked[i];
-        const lm = p.landmarks;
-        if (!p.visible || !lm) continue;
-        const col = r.ok ? 0x7dff8a : PLAYER_COLORS[i];
+      const p = this.input.tracked;
+      const lm = p.landmarks;
+      if (p.visible && lm) {
+        const col = r.ok ? 0x7dff8a : PLAYER_COLOR;
         const P = (k: number) => [c.x + (1 - lm[k].x) * c.w, c.y + lm[k].y * c.h] as const;
         for (const [a, b] of POSE_EDGES) {
           if (lm[a].v < 0.4 || lm[b].v < 0.4) continue;

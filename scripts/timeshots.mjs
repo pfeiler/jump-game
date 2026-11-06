@@ -2,14 +2,13 @@
 // Usage: node scripts/timeshots.mjs  (needs `npm run build && npx vite preview --port 4173`)
 import { chromium } from 'playwright';
 const URL = process.env.URL ?? 'http://localhost:4173/jump-game/';
-const PLAYERS = process.env.PLAYERS ?? '1';
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') console.log('[console]', m.text()); });
 const wait = (ms) => page.waitForTimeout(ms);
 const state = () => page.evaluate(() => window.__jump.scene.game.state);
-await page.goto(URL + `?nocam=1&time=120&players=${PLAYERS}`);
+await page.goto(URL + '?nocam=1&time=120');
 await wait(1200);
 await page.keyboard.press('Enter'); await wait(1000);
 await page.keyboard.press('Enter'); await wait(800);
@@ -31,9 +30,9 @@ const sampleVfx = (ms) => page.evaluate((ms) => new Promise((res) => {
 }), ms);
 const shot = (ms, path) => wait(ms).then(() => page.screenshot({ path }));
 
-if (PLAYERS === '1') {
+{
   // ---- TNT ----
-  const col = (await state()).cols[0];
+  const col = (await state()).col;
   await place('bomb', col);
   const samp = sampleVfx(2200);
   await page.keyboard.press('Space');
@@ -50,21 +49,19 @@ if (PLAYERS === '1') {
 }
 
 // ---- time block ----
-const cols = (await state()).cols;
+const col = (await state()).col;
 const before = await state();
-await place('clock', cols[0]);
-if (PLAYERS === '2') await place('clock', cols[1]);
+await place('clock', col);
 const t0 = (await state()).timeLeft;
 await page.keyboard.press('Space');
-if (PLAYERS === '2') await page.keyboard.press('ArrowUp');
-await shot(230, PLAYERS === '2' ? '/tmp/time2p-a.png' : '/tmp/time-a.png');
-await shot(260, PLAYERS === '2' ? '/tmp/time2p-b.png' : 'shots/22-time-block.png');
-await shot(200, PLAYERS === '2' ? '/tmp/time2p-c.png' : '/tmp/time-c.png');
+await shot(230, '/tmp/time-a.png');
+await shot(260, 'shots/22-time-block.png');
+await shot(200, '/tmp/time-c.png');
 const st = await state();
 console.log(`time: before ${t0.toFixed(2)} after ${st.timeLeft.toFixed(2)} (Δ ${(st.timeLeft - t0).toFixed(2)} incl. ~0.7 s elapsed), clocks ${st.clocks}, timeBonus ${st.timeBonus}`);
 await wait(800);
 // ---- pause: clock + exit in the same moment → timer frozen with the bonus included ----
-await page.evaluate(() => { const g = window.__jump.scene.game; const c = g.state.cols[0]; const r = g.grid.topRow(c); g.grid.cells[r][c] = { kind: 'clock', hp: 1, maxHp: 1 }; g.buildCells(false); });
+await page.evaluate(() => { const g = window.__jump.scene.game; const c = g.state.col; const r = g.grid.topRow(c); g.grid.cells[r][c] = { kind: 'clock', hp: 1, maxHp: 1 }; g.buildCells(false); });
 const sA = await state(), tA = sA.timeLeft;
 await page.keyboard.press('Space');
 await page.waitForFunction((n) => window.__jump.scene.game.state.clocks > n, sA.clocks, { timeout: 3000 });
@@ -77,5 +74,5 @@ console.log(`pause: timer frozen ${Math.abs(p2.timeLeft - p1.timeLeft) < 0.01} (
 await page.keyboard.press('Space');
 await wait(1500);
 console.log('after pause', JSON.stringify(await state()));
-console.log('2P/1P:', PLAYERS, 'before', before.timeLeft.toFixed(1));
+console.log('before', before.timeLeft.toFixed(1));
 await browser.close();

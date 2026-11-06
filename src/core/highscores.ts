@@ -1,5 +1,5 @@
 /** Local highscores (localStorage only, first name / initials, max 10 chars). */
-export interface HighscoreEntry { name: string; score: number; date: string; players: number }
+export interface HighscoreEntry { name: string; score: number; date: string }
 
 const KEY = (game: string) => `jumpgame.highscores.${game}`;
 export const MAX_NAME = 10;

@@ -11,14 +11,13 @@ export class GameScene implements Scene {
   game: GameModule;
   private ready = false;
 
-  constructor(def: GameDefinition, input: InputManager, sfx: Sfx, players: 1 | 2, shake: (a: number) => void, onEnd: (r: GameResult) => void) {
+  constructor(def: GameDefinition, input: InputManager, sfx: Sfx, shake: (a: number) => void, onEnd: (r: GameResult) => void) {
     this.game = def.create();
     let ended = false;
     const ctx: GameContext = {
       root: this.container,
       input,
       sfx,
-      players,
       shake,
       end: (r) => { if (!ended) { ended = true; onEnd(r); } },
     };

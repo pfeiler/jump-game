@@ -43,7 +43,6 @@ export class CameraTracker {
   private fpsCount = 0;
   private fpsT = 0;
   private stopped = false;
-  private numPoses = 1;
 
   constructor(private opts: { modelUrl: string; wasmBase: string; segmentation: boolean; useWorker: boolean; delegate?: 'GPU' | 'CPU' }) {
     this.ctx = this.canvas.getContext('2d')!;
@@ -56,8 +55,7 @@ export class CameraTracker {
     return this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 16 / 9;
   }
 
-  async start(numPoses: number): Promise<void> {
-    this.numPoses = numPoses;
+  async start(): Promise<void> {
     this.status = { ...this.status, state: 'starting', message: 'Kamera wird gestartet …' };
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Keine Kamera-Unterstützung (HTTPS nötig)');
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -73,7 +71,6 @@ export class CameraTracker {
     const poseOpts: PoseOptions = {
       wasmBase: this.opts.wasmBase,
       modelUrl: this.opts.modelUrl,
-      numPoses,
       segmentation: this.opts.segmentation,
       delegate: this.opts.delegate,
     };
@@ -96,13 +93,6 @@ export class CameraTracker {
     this.status.state = 'running';
     this.status.message = 'Kamera läuft';
     this.loop();
-  }
-
-  setNumPoses(n: number): void {
-    if (n === this.numPoses) return;
-    this.numPoses = n;
-    this.worker?.postMessage({ type: 'config', numPoses: n } satisfies ToWorker);
-    this.engine?.setNumPoses(n);
   }
 
   private startWorker(opts: PoseOptions): Promise<boolean> {

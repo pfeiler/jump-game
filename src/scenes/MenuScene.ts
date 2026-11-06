@@ -8,7 +8,7 @@ import type { Sfx } from '../core/audio';
 import { loadScores } from '../core/highscores';
 import { drawGem } from '../games/minetime/draw';
 
-type Tile = { kind: 'game'; def: GameDefinition } | { kind: 'players' } | { kind: 'soon' };
+type Tile = { kind: 'game'; def: GameDefinition } | { kind: 'soon' };
 
 const TILE_W = 330, TILE_H = 300, TILE_Y = 330;
 
@@ -19,8 +19,7 @@ export class MenuScene implements Scene {
   private tiles: Tile[] = [];
   private tileViews: Container[] = [];
   private tileBgs: Graphics[] = [];
-  private cursors: Graphics[] = [];
-  private playersText!: Text;
+  private cursor = new Graphics();
   private status!: Text;
   private tw = new Tweens();
   private sel = 0;
@@ -32,8 +31,6 @@ export class MenuScene implements Scene {
   constructor(
     private input: InputManager,
     private sfx: Sfx,
-    private getPlayers: () => 1 | 2,
-    private setPlayers: (n: 1 | 2) => void,
     private startGame: (def: GameDefinition) => void,
     private cameraStatus: () => string,
   ) {
@@ -44,7 +41,6 @@ export class MenuScene implements Scene {
     this.container.addChild(title, sub);
 
     for (const def of listGames()) this.tiles.push({ kind: 'game', def });
-    this.tiles.push({ kind: 'players' });
     if (listGames().length < 2) this.tiles.push({ kind: 'soon' });
     const n = this.tiles.length;
     const gap = (W - n * TILE_W) / (n + 1);
@@ -66,12 +62,6 @@ export class MenuScene implements Scene {
         const s = label(tile.def.subtitle, 22, 0xffffff, { wordWrap: true, wordWrapWidth: TILE_W - 30 });
         s.y = 80;
         c.addChild(t, s);
-      } else if (tile.kind === 'players') {
-        this.playersText = label('', 46, 0x7df9ff);
-        this.playersText.y = -20;
-        const s = label('Spring hier, um umzuschalten', 22, 0xffffff, { wordWrap: true, wordWrapWidth: TILE_W - 30 });
-        s.y = 80;
-        c.addChild(this.playersText, s);
       } else {
         const t = label('Bald mehr Spiele …', 34, 0xb0a8c8);
         c.addChild(t);
@@ -88,14 +78,10 @@ export class MenuScene implements Scene {
         c.scale.set(kk > 0 ? easeOutBack(Math.min(1, kk)) : 0);
       });
     });
-    for (let i = 0; i < 2; i++) {
-      const g = new Graphics();
-      g.circle(0, 0, 22).fill(i === 0 ? 0x3fd0ff : 0xffa53d).stroke({ width: 5, color: 0xffffff });
-      g.poly([-14, -24, 14, -24, 0, -44]).fill(0xffffff);
-      g.y = TILE_Y + TILE_H / 2 + 40;
-      this.cursors.push(g);
-      this.container.addChild(g);
-    }
+    this.cursor.circle(0, 0, 22).fill(0x3fd0ff).stroke({ width: 5, color: 0xffffff });
+    this.cursor.poly([-14, -24, 14, -24, 0, -44]).fill(0xffffff);
+    this.cursor.y = TILE_Y + TILE_H / 2 + 40;
+    this.container.addChild(this.cursor);
 
     // highscores
     const hs = loadScores('minetime').slice(0, 3);
@@ -106,19 +92,17 @@ export class MenuScene implements Scene {
     hsText.position.set(W / 2, 560);
     this.status = label('', 20, 0xc8c0e0, { fontWeight: '600' });
     this.status.position.set(W / 2, 628);
-    const help = label('Tastatur: ←/→ wählen · Leertaste = Sprung · Shift+Leertaste = Hochsprung · 1/2 = Spieler · B = Debug', 20, 0xc8c0e0, { fontWeight: '600' });
+    const help = label('Tastatur: ←/→ wählen · Leertaste = Sprung · Shift+Leertaste = Hochsprung · B = Debug', 20, 0xc8c0e0, { fontWeight: '600' });
     help.position.set(W / 2, 668);
     this.container.addChild(hsText, this.status, help);
     input.kbStep = 1 / n;
-    input.setKbX(0, 0.5 / n); // keyboard cursor starts on the first game
+    input.setKbX(0.5 / n); // keyboard cursor starts on the first game
     input.flush();
     input.keyListeners.add(this.onKey);
   }
 
   private onKey = (e: KeyboardEvent) => {
     if (e.code === 'Enter') this.activate(this.sel);
-    if (e.code === 'Digit1') this.setPlayers(1);
-    if (e.code === 'Digit2') this.setPlayers(2);
   };
 
   private activate(i: number): void {
@@ -127,10 +111,7 @@ export class MenuScene implements Scene {
     const v = this.tileViews[i];
     this.pop[i] = 0.15;
     void v;
-    if (tile.kind === 'players') {
-      this.setPlayers(this.getPlayers() === 1 ? 2 : 1);
-      this.sfx.select();
-    } else if (tile.kind === 'game') {
+    if (tile.kind === 'game') {
       this.busy = true;
       this.sfx.confirm();
       this.tw.add(0.35, () => {}, () => this.startGame(tile.def));
@@ -144,24 +125,16 @@ export class MenuScene implements Scene {
     this.tw.update(dt);
     if (this.destroyed) return;
     const n = this.tiles.length;
-    const players = this.getPlayers();
-    this.playersText.text = players === 1 ? '1 Spieler' : '2 Spieler';
-    const inputs = this.input.poll();
-    for (let i = 0; i < 2; i++) this.cursors[i].visible = i < inputs.length;
-    for (const p of inputs) {
-      const tileIdx = Math.min(n - 1, Math.floor(p.x * n));
-      if (p.id === 0 || p.landings.length) {
-        if (tileIdx !== this.sel) { this.sel = tileIdx; this.sfx.select(); }
-      }
-      const cur = this.cursors[p.id];
-      cur.x += (p.x * W - cur.x) * Math.min(1, dt * 15);
-      cur.y = TILE_Y + TILE_H / 2 + 40 + Math.sin(this.t * 6 + p.id) * 4;
-      if (p.landings.length) this.activate(tileIdx);
-    }
+    const p = this.input.poll()[0];
+    const tileIdx = Math.min(n - 1, Math.floor(p.x * n));
+    if (tileIdx !== this.sel) { this.sel = tileIdx; this.sfx.select(); }
+    this.cursor.x += (p.x * W - this.cursor.x) * Math.min(1, dt * 15);
+    this.cursor.y = TILE_Y + TILE_H / 2 + 40 + Math.sin(this.t * 6) * 4;
+    if (p.landings.length) this.activate(tileIdx);
     this.tileBgs.forEach((bg, i) => {
       const active = i === this.sel;
       const tile = this.tiles[i];
-      const color = tile.kind === 'game' ? tile.def.color : tile.kind === 'players' ? 0x3a7bd5 : 0x555066;
+      const color = tile.kind === 'game' ? tile.def.color : 0x555066;
       bg.clear();
       bg.roundRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 30).fill({ color, alpha: active ? 0.95 : 0.6 })
         .stroke({ width: active ? 10 : 4, color: active ? 0xffffff : 0x1a1030 });

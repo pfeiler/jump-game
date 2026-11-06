@@ -5,7 +5,6 @@ export interface PoseOptions {
   wasmBase: string;
   /** absolute URL of the .task model */
   modelUrl: string;
-  numPoses: number;
   segmentation: boolean;
   /** force a delegate; default tries GPU first, then CPU */
   delegate?: 'GPU' | 'CPU';
@@ -26,8 +25,7 @@ export interface PoseResult {
 
 export type ToWorker =
   | { type: 'init'; opts: PoseOptions }
-  | { type: 'frame'; id: number; captureT: number; bitmap: ImageBitmap }
-  | { type: 'config'; numPoses: number };
+  | { type: 'frame'; id: number; captureT: number; bitmap: ImageBitmap };
 
 export type FromWorker =
   | { type: 'ready'; delegate: string }

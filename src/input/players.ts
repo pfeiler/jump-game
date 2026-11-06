@@ -74,41 +74,18 @@ export class TrackedPlayer {
 }
 
 /**
- * Assigns detected poses to player slots. 1P: largest/closest person.
- * 2P: left half → P1, right half → P2, with hysteresis (nearest previous
- * position wins) so players crossing the middle briefly don't swap.
+ * Picks the pose to follow: the largest person, keeping the previous one
+ * while they stay close so a passer-by doesn't steal the camera.
  */
-export function assignPoses(hips: HipSample[], prev: (number | null)[], players: 1 | 2): (number | null)[] {
+export function assignPoses(hips: HipSample[], prevX: number | null): number | null {
   const idx = hips.map((_, i) => i).filter((i) => hips[i].visible);
-  if (players === 1) {
-    if (!idx.length) return [null];
-    if (prev[0] !== null && idx.length > 1) {
-      idx.sort((a, b) => Math.abs(hips[a].x - prev[0]!) - Math.abs(hips[b].x - prev[0]!));
-      if (Math.abs(hips[idx[0]].x - prev[0]!) < 0.15) return [idx[0]];
-    }
-    idx.sort((a, b) => hips[b].scale - hips[a].scale);
-    return [idx[0]];
+  if (!idx.length) return null;
+  if (prevX !== null && idx.length > 1) {
+    idx.sort((a, b) => Math.abs(hips[a].x - prevX) - Math.abs(hips[b].x - prevX));
+    if (Math.abs(hips[idx[0]].x - prevX) < 0.15) return idx[0];
   }
-  const out: (number | null)[] = [null, null];
-  if (idx.length >= 2) {
-    const [a, b] = idx.slice(0, 2).sort((p, q) => hips[p].x - hips[q].x);
-    if (prev[0] !== null && prev[1] !== null) {
-      const keep = Math.abs(hips[a].x - prev[0]) + Math.abs(hips[b].x - prev[1]);
-      const swap = Math.abs(hips[b].x - prev[0]) + Math.abs(hips[a].x - prev[1]);
-      if (swap + 0.05 < keep) return [b, a];
-    }
-    return [a, b];
-  }
-  if (idx.length === 1) {
-    const i = idx[0];
-    const x = hips[i].x;
-    const d0 = prev[0] === null ? Infinity : Math.abs(x - prev[0]);
-    const d1 = prev[1] === null ? Infinity : Math.abs(x - prev[1]);
-    let slot = x < 0.5 ? 0 : 1;
-    if (Math.min(d0, d1) < 0.12) slot = d0 <= d1 ? 0 : 1; // hysteresis around the middle
-    out[slot] = i;
-  }
-  return out;
+  idx.sort((a, b) => hips[b].scale - hips[a].scale);
+  return idx[0];
 }
 
 /** Is the whole body (head to feet) inside the image? */

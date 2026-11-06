@@ -72,12 +72,12 @@ describe('MineGrid', () => {
 
   it('turbo digs extra blocks, and a high jump does not gain the brown rider', () => {
     const g = blank();
-    g.turboUntil[0] = 10;
-    g.hit(1, 1, false, 0); // two hits, each brown break takes the dirt below
+    g.turboUntil = 10;
+    g.hit(1, 1, false); // two hits, each brown break takes the dirt below
     expect(g.topRow(1)).toBe(4);
     const h = blank();
-    h.turboUntil[0] = 10;
-    h.hit(1, 1, true, 0); // three hits, no rider
+    h.turboUntil = 10;
+    h.hit(1, 1, true); // three hits, no rider
     expect(h.topRow(1)).toBe(3);
   });
 

@@ -34,7 +34,7 @@ const tP = Date.now();
 while ((Date.now() - tP) / 1000 < MAXT) {
   const s = await page.evaluate(() => {
     const g = window.__jump.scene.game;
-    const tp = window.__jump.input.tracked.find((p) => p.visible) ?? window.__jump.input.tracked[0];
+    const tp = window.__jump.input.tracked;
     const lm = tp?.landmarks;
     const up = lm && lm.length > 16 ? (lm[15].y < lm[11].y && lm[16].y < lm[12].y) : null;
     return { paused: g.state.paused, prog: +g.state.pauseProgress.toFixed(2), vis: tp?.visible, who: window.__jump.input.tracked.indexOf(tp) + 1, up, shY: lm ? +((lm[11].y + lm[12].y) / 2).toFixed(3) : null, hipY: lm ? +((lm[23].y + lm[24].y) / 2).toFixed(3) : null, det: tp?.detector?.state, status: g.pause?.status?.text, level: g.state.level };

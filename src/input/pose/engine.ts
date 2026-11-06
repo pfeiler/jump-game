@@ -17,7 +17,7 @@ export class PoseEngine {
       PoseLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: opts.modelUrl, delegate },
         runningMode: 'VIDEO',
-        numPoses: opts.numPoses,
+        numPoses: 1,
         minPoseDetectionConfidence: 0.5,
         minPosePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,
@@ -37,10 +37,6 @@ export class PoseEngine {
       this.landmarker = await make('CPU');
       this.delegate = 'CPU';
     }
-  }
-
-  setNumPoses(n: number): void {
-    void this.landmarker.setOptions({ numPoses: n });
   }
 
   detect(

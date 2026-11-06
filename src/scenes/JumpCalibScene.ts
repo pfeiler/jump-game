@@ -39,7 +39,6 @@ export class JumpCalibScene implements Scene {
   constructor(
     private input: InputManager,
     private sfx: Sfx,
-    private players: 1 | 2,
     private previous: JumpTuning,
     private onDone: (saved: JumpTuning | null) => void,
   ) {
@@ -107,7 +106,7 @@ export class JumpCalibScene implements Scene {
       this.phaseT = 0;
     }
     if (this.phase === 'measure' && cam) {
-      for (const e of this.input.takeCameraLandings(0)) this.accept(e);
+      for (const e of this.input.takeCameraLandings()) this.accept(e);
     }
 
     const n = Math.min(this.hops.length, HOP_GOAL);
@@ -129,9 +128,8 @@ export class JumpCalibScene implements Scene {
       if (this.phaseT > 1.6) this.finish(true);
       return;
     }
-    const who = this.players === 2 ? 'Spieler 1: hüpf' : 'Hüpf';
     this.msg.text = cam
-      ? `${who} ${HOP_GOAL} Mal normal – so wie nachher im Spiel, nicht extra hoch.`
+      ? `Hüpf ${HOP_GOAL} Mal normal – so wie nachher im Spiel, nicht extra hoch.`
       : 'Kamera wird gestartet … gleich kannst du hüpfen.';
     this.detail.text = !cam
       ? ''

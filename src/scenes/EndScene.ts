@@ -20,7 +20,7 @@ export class EndScene implements Scene {
   private t = 0;
   private rank = -1;
 
-  constructor(private gameId: string, private result: GameResult, private players: number, private input: InputManager, private sfx: Sfx, private onMenu: () => void) {
+  constructor(private gameId: string, private result: GameResult, private input: InputManager, private sfx: Sfx, private onMenu: () => void) {
     const panel = new Graphics().roundRect(140, 30, W - 280, H - 60, 36).fill({ color: 0x140a24, alpha: 0.85 }).stroke({ width: 6, color: 0xffe66b });
     const title = label(result.score > 0 ? 'Super gemacht!' : 'Gut gesprungen!', 66, 0xffe66b);
     title.position.set(W / 2, 95);
@@ -58,7 +58,7 @@ export class EndScene implements Scene {
       if (e.key === 'Enter') {
         const n = sanitizeName(this.playerName);
         if (n) {
-          this.rank = saveScore(this.gameId, { name: n, score: this.result.score, date: new Date().toISOString().slice(0, 10), players: this.players });
+          this.rank = saveScore(this.gameId, { name: n, score: this.result.score, date: new Date().toISOString().slice(0, 10) });
           this.sfx.confirm();
         }
         this.toList();
@@ -96,7 +96,7 @@ export class EndScene implements Scene {
     if (this.phase === 'entry' && this.t > 4 && jumped) {
       // no keyboard at hand: a jump skips the name entry (saves if something was typed)
       const n = sanitizeName(this.playerName);
-      if (n) this.rank = saveScore(this.gameId, { name: n, score: this.result.score, date: new Date().toISOString().slice(0, 10), players: this.players });
+      if (n) this.rank = saveScore(this.gameId, { name: n, score: this.result.score, date: new Date().toISOString().slice(0, 10) });
       this.toList();
     } else if (this.phase === 'list' && this.t > 1.5 && inputs.some((p) => p.landings.length)) this.onMenu();
   }

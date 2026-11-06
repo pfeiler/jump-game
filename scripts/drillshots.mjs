@@ -19,7 +19,7 @@ const shot = (ms, path) => wait(ms).then(() => page.screenshot({ path }));
 
 // ---- horizontal drill: put it on top of the player's column, with a gem and stones in the same row ----
 const info = await page.evaluate(() => {
-  const g = window.__jump.scene.game, grid = g.grid, col = g.state.cols[0];
+  const g = window.__jump.scene.game, grid = g.grid, col = g.state.col;
   // dig the column down to row 3 first so the drilled row is in the middle of the view
   let r = grid.topRow(col);
   while (r < grid.viewTop + 3) { grid.cells[r][col] = null; r++; }
@@ -53,7 +53,7 @@ await wait(1000);
 console.log('pop-ups after 1.2 s (should be gone):', JSON.stringify(await countTexts()));
 // ---- many gems at once (bomb next to 5 gems) → one combined pop-up ----
 await page.evaluate(() => {
-  const g = window.__jump.scene.game, grid = g.grid, col = g.state.cols[0];
+  const g = window.__jump.scene.game, grid = g.grid, col = g.state.col;
   const r = grid.topRow(col);
   grid.cells[r][col] = { kind: 'bomb', hp: 1, maxHp: 1 };
   for (const [dc, dr] of [[-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) { const c = col + dc; if (c >= 0 && c < 6 && grid.cells[r + dr]) grid.cells[r + dr][c] = { kind: 'gem', hp: 1, maxHp: 1, gemType: 1, gemValue: 20 }; }
