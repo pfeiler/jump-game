@@ -39,6 +39,8 @@ und einen grünen Haken „Du bist im Bild ✓“, sobald Kopf bis Füße zu seh
 danach ohne Neustart durch Menü, Kalibrierung und Spiel. Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe).
 Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis und alles läuft per Tastatur.
 
+**Zweite Person:** Die Kamera kann zwei Personen erkennen, gespielt wird aber nur mit einer. Bleibt eine zweite Person im Bild, pausiert das Spiel mit dem Hinweis „Nur eine Person!“ – sie muss den Kamerabereich verlassen. Ist wieder nur eine Person da, geht es von allein weiter. Im Menü und bei der Kalibrierung erscheint derselbe Hinweis; Tastatur und Enter bleiben nutzbar.
+
 **Sprungkalibrierung:** Beim ersten Start mit Kamera (ohne `?sens=`) hüpft man etwa 10 Mal normal. Daraus wird die Empfindlichkeit gespeichert (`localStorage`, Schlüssel `jumpgame.jumpcalib`) und beim nächsten Mal geladen. `C` auf dem Startbildschirm oder in der Still-Kalibrierung misst neu, Enter überspringt. Liegen die normalen Hüpfer schon nahe an der Hochsprung-Schwelle, wird nur diese Schwelle etwas angehoben – normale Landung bleibt 1 Treffer, Hochsprung 2. `?sens=` und `?high=` haben beim Laden Vorrang vor dem gespeicherten Wert.
 
 ### URL-Parameter
