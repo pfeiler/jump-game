@@ -5,7 +5,7 @@ import type { Block } from './grid';
 export const GEM_COLORS = [0x2ee66b, 0x3fa9f5, 0xff3b5c, 0xc8efff];
 export const KIND_COLORS: Record<string, number> = {
   dirt: 0x9a6233, stone: 0x8d939e, hard: 0x4b4f5e, gem: 0x9a6233, bomb: 0x7a4a33,
-  drill: 0x6b5a3a, hdrill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, clock: 0x1d7f86, anvil: 0x33343c, spring: 0x6b5a3a, exit: 0x1d1d2b,
+  drill: 0x6b5a3a, hdrill: 0x6b5a3a, hammer: 0x6b5a3a, magnet: 0x6b5a3a, clock: 0x1d7f86, spring: 0x6b5a3a, exit: 0x1d1d2b,
 };
 
 function hash(a: number, b: number, c = 0): number {
@@ -185,20 +185,6 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
       g.poly([cx - 14, cy - h * 0.32 + 14, cx + 14, cy - h * 0.32 + 14, cx, cy + h * 0.34]).fill(0xffd23f).stroke({ width: 2, color: 0x9a7a10 });
       for (let i = 0; i < 3; i++) g.moveTo(cx - 10 + i * 4, cy - 6 + i * 9).lineTo(cx + 10 - i * 4, cy - 2 + i * 9).stroke({ width: 2, color: 0x9a7a10 });
       break;
-    case 'anvil': {
-      // dark steel anvil: horn to the left, flat face with highlight, waist, foot
-      const top = cy - h * 0.26, fh = h * 0.16;
-      g.poly([cx - w * 0.36, top + fh * 0.3, cx - w * 0.2, top, cx + w * 0.3, top, cx + w * 0.3, top + fh, cx - w * 0.2, top + fh, cx - w * 0.3, top + fh * 0.75])
-        .fill(0x4a4f5c).stroke({ width: 2.5, color: 0x101218 });
-      g.poly([cx - w * 0.1, top + fh, cx + w * 0.2, top + fh, cx + w * 0.13, cy + h * 0.12, cx - w * 0.03, cy + h * 0.12]).fill(0x3a3e49).stroke({ width: 2.5, color: 0x101218 });
-      g.roundRect(cx - w * 0.2, cy + h * 0.12, w * 0.5, h * 0.13, 3).fill(0x2c2f38).stroke({ width: 2.5, color: 0x101218 });
-      g.rect(cx - w * 0.18, top + 2, w * 0.44, 3).fill({ color: 0xdfe8ff, alpha: 0.75 }); // face highlight
-      g.circle(cx - w * 0.3, top + fh * 0.45, 2).fill({ color: 0xffffff, alpha: 0.6 });
-      // subtle "high jump" hint: double up-chevron in the corner
-      const ax = w - 16, ay = 16;
-      for (const dy of [0, 8]) g.moveTo(ax - 7, ay + dy + 6).lineTo(ax, ay + dy).lineTo(ax + 7, ay + dy + 6).stroke({ width: 3, color: 0x7df9ff, alpha: 0.85, cap: 'round', join: 'round' });
-      break;
-    }
     case 'spring': {
       // coil spring between two plates
       const x0 = cx - w * 0.2, x1 = cx + w * 0.2, y0 = cy - h * 0.24, y1 = cy + h * 0.22;
@@ -251,7 +237,6 @@ export function drawBlock(g: Graphics, b: Block, w: number, h: number, col: numb
     g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0xffe66b, alpha: 0.9 });
   }
   if (b.kind === 'spring') g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0xff7ad9, alpha: 0.95 });
-  if (b.kind === 'anvil') g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 3, color: 0x7df9ff, alpha: 0.45 });
   if (b.kind === 'clock') g.roundRect(p, p, w - 2 * p, h - 2 * p, 10).stroke({ width: 4, color: 0x7dffa8, alpha: 0.95 });
   // cracks for damaged blocks
   const dmg = b.maxHp - b.hp;

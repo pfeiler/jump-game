@@ -1,5 +1,5 @@
-// Screenshots + checks: Wucht-Amboss, Feder-Block (Boing-Turbo) and the new gem art (keyboard mode, ?nocam=1).
-// Usage: node scripts/anvilshots.mjs  (needs `npm run build && npx vite preview --port 4173`)
+// Screenshots + checks: Feder-Block (Boing-Turbo) and gem art (keyboard mode, ?nocam=1).
+// Usage: node scripts/springshots.mjs  (needs `npm run build && npx vite preview --port 4173`)
 import { chromium } from 'playwright';
 const URL = process.env.URL ?? 'http://localhost:4173/jump-game/';
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -23,31 +23,14 @@ const place = (kind) => page.evaluate((kind) => {
   const g = window.__jump.scene.game, grid = g.grid, col = g.state.col;
   let r = grid.topRow(col);
   while (r < grid.viewTop + 2) { grid.cells[r][col] = null; r++; }
-  grid.cells[r][col] = { kind, hp: kind === 'anvil' ? 1 : 1, maxHp: 1 };
+  grid.cells[r][col] = { kind, hp: 1, maxHp: 1 };
   for (let k = 1; k <= 4; k++) if (grid.cells[r + k] && grid.cells[r + k][col]?.kind !== 'exit') grid.cells[r + k][col] = { kind: 'dirt', hp: 1, maxHp: 1 };
   g.buildCells(false);
   return { col, row: r };
 }, kind);
 
-// ---- anvil: normal landing bounces off, high jump smashes it ----
-const a = await place('anvil');
-await page.keyboard.press('Space');
-await wait(150);
-const afterClank = await page.evaluate(({ col, row }) => window.__jump.scene.game.grid.cells[row][col]?.kind, a);
-console.log('normal landing on anvil →', afterClank, '| texts:', JSON.stringify(await texts()));
-await page.screenshot({ path: '/tmp/anvil-clank.png' });
-await wait(700);
-await page.keyboard.down('Shift'); await page.keyboard.press('Space'); await page.keyboard.up('Shift');
-await wait(200);
-await page.screenshot({ path: '/tmp/anvil-fall.png' });
-await wait(120);
-await page.screenshot({ path: 'shots/25-anvil.png' });
-const afterSmash = await page.evaluate(({ col, row }) => { const gr = window.__jump.scene.game.grid; return [0, 1, 2, 3, 4, 5].map((k) => gr.cells[row + k]?.[col]?.kind ?? null); }, a);
-console.log('after high jump, column from anvil row:', JSON.stringify(afterSmash));
-await wait(1200);
-
 // ---- spring: turbo ----
-const s = await place('spring');
+await place('spring');
 await page.keyboard.press('Space');
 await wait(250);
 await page.screenshot({ path: '/tmp/spring-banner.png' });

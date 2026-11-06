@@ -46,7 +46,7 @@ describe('MineGrid', () => {
   });
 
   it('a half jump does not destroy a non-brown block under the dirt', () => {
-    const kinds: BlockKind[] = ['stone', 'hard', 'gem', 'bomb', 'spring', 'anvil', 'clock', 'drill', 'hdrill', 'hammer', 'magnet'];
+    const kinds: BlockKind[] = ['stone', 'hard', 'gem', 'bomb', 'spring', 'clock', 'drill', 'hdrill', 'hammer', 'magnet'];
     for (const kind of kinds) {
       const g = blank();
       g.cells[1][2] = kind === 'gem' ? makeBlock('gem', { gemType: 1, gemValue: 20 }) : makeBlock(kind);
@@ -54,7 +54,6 @@ describe('MineGrid', () => {
       expect(g.get(2, 0), kind).toBeNull();
       expect(g.get(2, 1)?.kind, kind).toBe(kind);
       expect(g.get(2, 2)?.kind, kind).toBe('dirt');
-      if (kind === 'anvil') expect(g.get(2, 1)?.hp).toBe(g.get(2, 1)?.maxHp);
     }
     // dirt sitting on the exit: the exit itself stays, and the level still completes
     const guard = blank(4);
