@@ -40,6 +40,8 @@ und einen grünen Haken „Spieler 1 erkannt ✓“, sobald Kopf bis Füße zu s
 danach ohne Neustart durch Menü, Kalibrierung und Spiel. Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe).
 Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis und alles läuft per Tastatur.
 
+**Sprungkalibrierung:** Beim ersten Start mit Kamera (ohne `?sens=`) hüpft man etwa 10 Mal normal. Daraus wird die Empfindlichkeit gespeichert (`localStorage`, Schlüssel `jumpgame.jumpcalib`) und beim nächsten Mal geladen. `C` auf dem Startbildschirm oder in der Still-Kalibrierung misst neu, Enter überspringt. Liegen die normalen Hüpfer schon nahe an der Hochsprung-Schwelle, wird nur diese Schwelle etwas angehoben – normale Landung bleibt 1 Treffer, Hochsprung 2. `?sens=` und `?high=` haben beim Laden Vorrang vor dem gespeicherten Wert.
+
 ### URL-Parameter
 
 | Parameter | Wirkung |
@@ -51,7 +53,7 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 | `?seg=0` | keine Personen-Freistellung (spart Rechenzeit; Kamerabild wird dann abgedunkelt gezeigt) |
 | `?worker=0` | Pose-Erkennung im Hauptthread statt im Web Worker |
 | `?high=0.6` | Flugzeit-Schwelle (s) für Hochsprung |
-| `?sens=1.5` | Empfindlichkeit der Sprungerkennung (Standard 1; > 1 = kleinere Hüpfer zählen, < 1 = unempfindlicher, 0,3–3) |
+| `?sens=1.5` | Empfindlichkeit der Sprungerkennung (Standard 1; > 1 = kleinere Hüpfer zählen, < 1 = unempfindlicher, 0,3–3). Überschreibt den gespeicherten Wert aus der Sprungkalibrierung |
 | `?players=2` | direkt im 2-Spieler-Modus starten |
 | `?time=60` | Rundenlänge in Sekunden (Standard 120) |
 

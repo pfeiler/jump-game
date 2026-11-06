@@ -1,6 +1,6 @@
 import { CameraTracker } from './camera';
 import { TrackedPlayer, assignPoses, hipFromPose, type HipSample } from './players';
-import { heightFromFlightTime, type JumpConfig, type LandingEvent } from './jumpDetector';
+import { heightFromFlightTime, sensitivityConfig, type JumpConfig, type LandingEvent } from './jumpDetector';
 
 export interface PlayerInput {
   id: number;
@@ -157,5 +157,27 @@ export class InputManager {
   flush(): void {
     this.kbEvents = [[], []];
     for (const t of this.tracked) t.pending = [];
+  }
+
+  /** Camera landings for one player; keyboard jumps are discarded. */
+  takeCameraLandings(i = 0): LandingEvent[] {
+    const ev = this.tracked[i] ? [...this.tracked[i].pending] : [];
+    if (this.tracked[i]) this.tracked[i].pending = [];
+    if (this.kbEvents[i]) this.kbEvents[i] = [];
+    return ev;
+  }
+
+  /**
+   * Apply a sensitivity factor (`?sens=`) and high-jump flight time to both players.
+   * Resets the in-flight state so a half-seen hop doesn't keep the old thresholds.
+   */
+  applyJumpTuning(sens: number, highFlightTime: number): void {
+    const partial: Partial<JumpConfig> = { ...sensitivityConfig(sens), highFlightTime };
+    for (const p of this.tracked) {
+      p.detector.applyConfig(partial);
+      p.detector.reset();
+      p.pending = [];
+    }
+    this.kbEvents = [[], []];
   }
 }

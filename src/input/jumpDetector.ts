@@ -131,6 +131,12 @@ export class JumpDetector {
     this.filter = new OneEuroFilter(this.cfg.filterMinCutoff, this.cfg.filterBeta, 4);
   }
 
+  /** Live-update thresholds (sensitivity, high-jump time). Keeps the standing baseline. */
+  applyConfig(partial: Partial<JumpConfig>): void {
+    Object.assign(this.cfg, partial);
+    this.updateThresholds();
+  }
+
   /** noise-adapted thresholds: a noisy camera raises them so jitter can't look like hops */
   private updateThresholds(): void {
     const c = this.cfg;

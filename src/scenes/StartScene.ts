@@ -23,6 +23,7 @@ export class StartScene implements Scene {
   rawCameraAlpha = 0.85;
   private title;
   private press;
+  private calibHint;
   private status;
   private pill = new Graphics();
   private check = new Graphics();
@@ -30,7 +31,7 @@ export class StartScene implements Scene {
   private t = 0;
   private lastText = '';
 
-  constructor(private onStart: () => void, private input: InputManager, private info: () => StartInfo) {
+  constructor(private onStart: () => void, private onCalibrate: () => void, private input: InputManager, private info: () => StartInfo) {
     const bg = new Graphics().rect(0, 0, W, H).fill({ color: 0x000000, alpha: 0.001 });
     bg.eventMode = 'static';
     bg.on('pointerdown', () => this.go());
@@ -41,17 +42,27 @@ export class StartScene implements Scene {
     this.status = label('', 34, 0xffffff);
     this.status.position.set(W / 2, 566);
     this.press = label('Klicke oder drücke eine Taste zum Starten', 30, 0x7dffa8);
-    this.press.position.set(W / 2, 640);
+    this.press.position.set(W / 2, 628);
+    this.calibHint = label('', 24, 0xb6ffcf);
+    this.calibHint.position.set(W / 2, 672);
     const privacy = label('Die Kamera bleibt auf diesem Gerät – es wird kein Video hochgeladen oder gespeichert.', 18, 0xc8c0e0, { fontWeight: '600' });
-    privacy.position.set(W / 2, 694);
-    this.container.addChild(bg, this.skeleton, this.title, sub, this.pill, this.check, this.status, this.press, privacy);
+    privacy.position.set(W / 2, 708);
+    this.container.addChild(bg, this.skeleton, this.title, sub, this.pill, this.check, this.status, this.press, this.calibHint, privacy);
     window.addEventListener('keydown', this.onKey);
   }
 
   private onKey = (e: KeyboardEvent) => {
     if (e.code === 'F12' || e.code === 'F5' || e.code === 'KeyB' || e.code === 'F2' || e.code === 'KeyM') return;
+    const cam = this.info().state === 'running' || this.info().state === 'starting';
+    if (e.code === 'KeyC' && cam) { this.calibrate(); return; }
     this.go();
   };
+
+  private calibrate(): void {
+    if (this.done) return;
+    this.done = true;
+    this.onCalibrate();
+  }
 
   private done = false;
   private go(): void {
@@ -87,6 +98,8 @@ export class StartScene implements Scene {
     this.input.flush();
 
     const info = this.info();
+    const cam = info.state === 'running' || info.state === 'starting';
+    this.calibHint.text = cam ? 'C = Sprünge kalibrieren' : '';
     const r = this.readiness;
     const anyVisible = info.state === 'running' && this.input.tracked.slice(0, info.players).some((p) => p.visible);
     const color = info.state === 'error' ? 0xffc46b : r.ok ? 0x7dff8a : anyVisible ? 0xffe66b : 0xffffff;

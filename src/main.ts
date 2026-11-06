@@ -4,6 +4,7 @@ import './games';
 import { W, H, type GameDefinition, type GameResult } from './games/types';
 import { InputManager } from './input/inputManager';
 import { sensitivityConfig } from './input/jumpDetector';
+import { hasJumpCalib, loadJumpCalib, resolveJumpTuning, type JumpTuning } from './core/jumpCalib';
 import { CameraTracker } from './input/camera';
 import { Sfx } from './core/audio';
 import { initPhysics } from './core/particles';
@@ -12,10 +13,12 @@ import type { Scene } from './scenes/types';
 import { StartScene } from './scenes/StartScene';
 import { MenuScene } from './scenes/MenuScene';
 import { CalibrationScene } from './scenes/CalibrationScene';
+import { JumpCalibScene } from './scenes/JumpCalibScene';
 import { GameScene } from './scenes/GameScene';
 import { EndScene } from './scenes/EndScene';
 
 const params = new URLSearchParams(location.search);
+const initialTuning = resolveJumpTuning(params, loadJumpCalib());
 const BASE = import.meta.env.BASE_URL;
 const abs = (p: string) => new URL(BASE + p, location.href).href;
 
@@ -25,7 +28,8 @@ class App {
   camSprite: Sprite | null = null;
   sceneLayer = new Container();
   scene: Scene | null = null;
-  input = new InputManager({ ...sensitivityConfig(Number(params.get('sens')) || 1), highFlightTime: Number(params.get('high')) || 0.5 });
+  input = new InputManager({ ...sensitivityConfig(initialTuning.sens), highFlightTime: initialTuning.high });
+  jumpTuning: JumpTuning = initialTuning;
   sfx = new Sfx();
   camera: CameraTracker | null = null;
   players: 1 | 2 = params.get('players') === '2' ? 2 : 1;
@@ -67,7 +71,7 @@ class App {
     window.addEventListener('keydown', () => this.sfx.unlock());
 
     this.pixi.ticker.add((tk) => this.tick(tk.deltaMS / 1000));
-    this.setScene(new StartScene(() => this.onStart(), this.input, () => this.startInfo()));
+    this.setScene(new StartScene(() => this.onStart(), () => this.onCalibrateFromStart(), this.input, () => this.startInfo()));
     (window as unknown as { __jump: unknown }).__jump = this;
     // getUserMedia needs no user gesture (only audio does) → start the camera right away,
     // so the start screen already shows the live image and tracking keeps running afterwards.
@@ -85,7 +89,27 @@ class App {
 
   private onStart(): void {
     this.sfx.unlock();
-    this.goMenu();
+    if (this.shouldAutoJumpCalib()) this.goJumpCalib(() => this.goMenu());
+    else this.goMenu();
+  }
+
+  /** First camera visit without a saved or URL sensitivity: measure hops before the menu. */
+  private shouldAutoJumpCalib(): boolean {
+    if (params.has('sens')) return false;
+    if (params.get('nocam') === '1' || this.cameraFailed) return false;
+    return !hasJumpCalib();
+  }
+
+  private onCalibrateFromStart(): void {
+    this.sfx.unlock();
+    this.goJumpCalib(() => this.goMenu());
+  }
+
+  goJumpCalib(after: () => void): void {
+    this.setScene(new JumpCalibScene(this.input, this.sfx, this.players, this.jumpTuning, (saved) => {
+      if (saved) this.jumpTuning = saved;
+      after();
+    }));
   }
 
   /** info for the start screen: camera state + where the camera image is on the stage */
@@ -165,7 +189,7 @@ class App {
   }
 
   calibrate(def: GameDefinition): void {
-    this.setScene(new CalibrationScene(this.input, this.sfx, this.players, () => this.play(def)));
+    this.setScene(new CalibrationScene(this.input, this.sfx, this.players, () => this.play(def), () => this.goJumpCalib(() => this.calibrate(def))));
   }
 
   play(def: GameDefinition): void {
