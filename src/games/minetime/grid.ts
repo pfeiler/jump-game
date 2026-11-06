@@ -8,7 +8,7 @@
  *  - brown dirt: a normal hop breaks it and, if the block directly underneath is
  *    also brown dirt, that one too. Gray stone: one normal hop. Hard rock: 3.
  *    Gems (points scale with depth/level), bomb (clears 1-tile radius, chains),
- *    power-ups: drill (column), cross drill (row), hammer, magnet.
+ *    power-ups: drill (column), cross drill (row), hammer, magnet (gems within MAGNET_RADIUS).
  *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
  *  - anvil (Wucht-Amboss): normal landings bounce off ("Klong"), only a high jump smashes it;
  *    it then crashes 2–3 blocks deeper. Never in the exit column, at most one per row.
@@ -30,6 +30,11 @@ export const TURBO_DURATION = 4;
 export const hitsFor = (high: boolean, turbo: boolean): number => (turbo ? (high ? 3 : 2) : high ? 2 : 1);
 /** open rows kept above the highest block so the top of the playfield stays air */
 export const SKY_ROWS = 1;
+/**
+ * Magnet reach in cells (Chebyshev: a square around the block that was broken).
+ * 1 = the eight neighbours only — not the rest of the visible field.
+ */
+export const MAGNET_RADIUS = 1;
 /** time blocks per level: 2 in the first two levels, 3 from level 3 (deeper levels take longer) */
 export const timeBlocksFor = (level: number): number => (level >= 3 ? 3 : 2);
 
@@ -352,11 +357,15 @@ export class MineGrid {
           if (this.hammerUntil - t > HAMMER_DURATION * 2) this.hammerUntil = t + HAMMER_DURATION * 2;
           break;
         case 'magnet': {
+          // gems in the tight square around this block only — never the whole screen
           ev.push({ type: 'powerup', kind: 'magnet', col: c, row: r });
-          const end = Math.min(this.rows, this.viewTop + VISIBLE_ROWS);
-          for (let nr = this.viewTop; nr < end; nr++)
-            for (let nc = 0; nc < COLS; nc++)
+          for (let dr = -MAGNET_RADIUS; dr <= MAGNET_RADIUS; dr++)
+            for (let dc = -MAGNET_RADIUS; dc <= MAGNET_RADIUS; dc++) {
+              if (!dr && !dc) continue;
+              const nc = c + dc, nr = r + dr;
+              if (nc < 0 || nc >= COLS || nr < 0 || nr >= this.rows) continue;
               if (this.cells[nr][nc]?.kind === 'gem') queue.push([nc, nr, 'magnet']);
+            }
           break;
         }
       }
