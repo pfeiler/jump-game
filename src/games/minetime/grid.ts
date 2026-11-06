@@ -10,8 +10,6 @@
  *    Gems (points scale with depth/level), bomb (clears 1-tile radius, chains),
  *    power-ups: drill (column), cross drill (row), hammer, magnet (gems within MAGNET_RADIUS).
  *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
- *  - anvil (Wucht-Amboss): normal landings bounce off ("Klong"), only a high jump smashes it;
- *    it then crashes 2–3 blocks deeper. Never in the exit column, at most one per row.
  *  - spring (Feder-Block): 1 hit, gives TURBO for 4 s (landing ×2, high jump ×3).
  *  - an exit tile sits in the bottom row; uncovering it finishes the level.
  *  - score only ever goes up (gems + break points × combo, level bonus).
@@ -38,9 +36,9 @@ export const MAGNET_RADIUS = 1;
 /** time blocks per level: 2 in the first two levels, 3 from level 3 (deeper levels take longer) */
 export const timeBlocksFor = (level: number): number => (level >= 3 ? 3 : 2);
 
-export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hdrill' | 'hammer' | 'magnet' | 'clock' | 'anvil' | 'spring' | 'exit';
+export type BlockKind = 'dirt' | 'stone' | 'hard' | 'gem' | 'bomb' | 'drill' | 'hdrill' | 'hammer' | 'magnet' | 'clock' | 'spring' | 'exit';
 export type PowerKind = 'drill' | 'hdrill' | 'hammer' | 'magnet';
-export type Cause = 'hit' | 'bomb' | 'drill' | 'hdrill' | 'magnet' | 'anvil' | 'cavein';
+export type Cause = 'hit' | 'bomb' | 'drill' | 'hdrill' | 'magnet' | 'cavein';
 
 export interface Block {
   kind: BlockKind;
@@ -60,14 +58,12 @@ export type MineEvent =
   | { type: 'combo'; combo: number; multiplier: number }
   | { type: 'empty'; col: number }
   | { type: 'time'; col: number; row: number; seconds: number; cause: Cause }
-  | { type: 'clank'; col: number; row: number }
-  | { type: 'anvil'; col: number; row: number; depth: number }
   | { type: 'turbo'; col: number; row: number; until: number }
   | { type: 'cavein'; row: number }
   | { type: 'exitReached'; col: number; row: number };
 
 const BREAK_POINTS: Record<BlockKind, number> = {
-  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hdrill: 5, hammer: 5, magnet: 5, clock: 5, anvil: 10, spring: 3, exit: 0,
+  dirt: 1, stone: 3, hard: 5, gem: 0, bomb: 5, drill: 5, hdrill: 5, hammer: 5, magnet: 5, clock: 5, spring: 3, exit: 0,
 };
 const GEM_BASE = [10, 20, 35, 60];
 
@@ -85,8 +81,6 @@ export const genProbs = (level: number, row: number, d: number) => ({
   stone: 0.12 + 0.06 * d,
   /** Feder-Block ≈ 4 % */
   spring: 0.04,
-  /** Wucht-Amboss ≈ 3 % (level 1) → 4–5 % (deep rows / later levels), never in row 0 */
-  anvil: row === 0 ? 0 : Math.min(0.055, 0.038 + 0.006 * (level - 1) + 0.012 * d),
 });
 
 export const levelRows = (level: number): number => Math.min(22, 10 + 2 * level);
@@ -175,10 +169,7 @@ export class MineGrid {
         const pPow = powerups < 2 + level ? pr.power : 0;
         const pHard = pr.hard;
         const pStone = pr.stone;
-        // anvil: never in the exit column, at most one per row, never directly below another anvil
-        const anvilOk = col !== this.exitCol && !line.some((b) => b?.kind === 'anvil') && this.cells[row - 1]?.[col]?.kind !== 'anvil';
         const pSpring = pr.spring;
-        const pAnvil = anvilOk ? pr.anvil : 0;
         let acc = pGem;
         if (x < acc) {
           // a bit better gems than before (+0.12): diamonds already show up in level 1–2
@@ -198,7 +189,6 @@ export class MineGrid {
           continue;
         }
         if (x < (acc += pSpring)) { line.push(makeBlock('spring')); continue; }
-        if (x < (acc += pAnvil)) { line.push(makeBlock('anvil')); continue; }
         if (x < (acc += pHard)) { line.push(makeBlock('hard')); continue; }
         if (x < (acc += pStone)) { line.push(makeBlock('stone')); continue; }
         line.push(makeBlock('dirt'));
@@ -256,16 +246,14 @@ export class MineGrid {
       if (row >= this.rows) { ev.push({ type: 'empty', col }); break; }
       const b = this.cells[row][col]!;
       if (b.kind === 'exit') { this.checkExit(ev); break; }
-      // the anvil only gives way to a high jump – a normal landing bounces off (no damage, no penalty)
-      if (b.kind === 'anvil' && !high) { ev.push({ type: 'clank', col, row }); break; }
       const dmg = this.hammerActive(t) ? 2 : 1;
       b.hp -= dmg;
       if (b.hp <= 0) {
         const kind = b.kind;
         this.destroy(col, row, 'hit', t, ev);
         // Brown dirt, normal/half jump only: also break the brown block directly
-        // underneath. Anything else (stone, gem, anvil, …) stays. One block, no
-        // cascade. High jumps stay pure multi-hits so anvils and hit counts don't shift.
+        // underneath. Anything else (stone, gem, …) stays. One block, no cascade.
+        // High jumps stay pure multi-hits so hit counts don't shift.
         if (!high && kind === 'dirt') {
           const below = this.cells[row + 1]?.[col];
           if (below?.kind === 'dirt') this.destroy(col, row + 1, 'hit', t, ev);
@@ -330,18 +318,6 @@ export class MineGrid {
           for (let d = 1; d < COLS; d++)
             for (const nc of [c - d, c + d]) if (nc >= 0 && nc < COLS && this.cells[r][nc]) queue.push([nc, r, 'hdrill']);
           break;
-        case 'anvil': {
-          if (why !== 'hit') break; // blown up / drilled: just gone
-          // smashed by a high jump: it crashes 2–3 blocks deeper down its column
-          const depth = 2 + (this.rng() < 0.5 ? 1 : 0);
-          ev.push({ type: 'anvil', col: c, row: r, depth });
-          for (let k = 1; k <= depth; k++) {
-            const nr = r + k;
-            if (nr >= this.rows || this.cells[nr][c]?.kind === 'exit') break;
-            if (this.cells[nr][c]) queue.push([c, nr, 'anvil']);
-          }
-          break;
-        }
         case 'spring': {
           this.turboUntil = Math.min(t + TURBO_DURATION * 2, Math.max(t, this.turboUntil) + TURBO_DURATION);
           ev.push({ type: 'turbo', col: c, row: r, until: this.turboUntil });

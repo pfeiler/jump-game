@@ -39,8 +39,6 @@ export class MineTime implements GameModule {
   private twinkle = new Graphics();
   private twinkles: { c: number; r: number; t: number; dur: number; dx: number; dy: number; big: boolean }[] = [];
   private twinkleT = 0;
-  private clanks = 0;
-  private anvilRow = 0;
   private cells = new Map<number, CellView>();
   private particles!: ParticleSystem;
   private scoreText!: Text;
@@ -293,8 +291,6 @@ export class MineTime implements GameModule {
     let bombs = 0;
     let clocks = 0;
     const gemHits: GemHit[] = [];
-    const av = ev.find((e) => e.type === 'anvil');
-    if (av && av.type === 'anvil') this.anvilRow = av.row;
     const hd = ev.find((e) => e.type === 'powerup' && e.kind === 'hdrill');
     if (hd && hd.type === 'powerup') this.hdrillCol = hd.col;
     for (const e of ev) {
@@ -315,7 +311,7 @@ export class MineTime implements GameModule {
           const color = KIND_COLORS[e.block.kind];
           const n = e.cause === 'hit' ? 14 : 7;
           this.particles.burst(p.x, p.y, color, n, { speed: e.cause === 'bomb' ? 9 : 6, size: 8 });
-          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : e.cause === 'hdrill' ? this.hdrillDelay(e.col) : e.cause === 'anvil' ? 0.12 + (e.row - this.anvilRow - 1) * 0.06 : 0);
+          this.removeCell(e.col, e.row, e.cause === 'drill' ? Math.max(0, e.row - this.grid.viewTop) * 0.04 : e.cause === 'hdrill' ? this.hdrillDelay(e.col) : 0);
           if (e.points >= 3 && e.cause === 'hit' && e.block.kind !== 'clock') floatText(this.fxLayer, this.tw, `+${e.points}`, p.x, p.y, 0xffffff, 26);
           if (e.cause === 'hit') this.ctx.shake(e.block.kind === 'hard' ? 9 : 5);
           break;
@@ -362,21 +358,6 @@ export class MineTime implements GameModule {
           floatText(this.fxLayer, this.tw, `+${e.seconds} s`, p.x, p.y - 10, 0x7dffa8, 34);
           break;
         }
-        case 'clank': {
-          // anvil: bounce off – sparks, wobble, "KLONG!", no damage
-          const p = this.cellPos(e.col, e.row);
-          sfx.clank();
-          this.particles.burst(p.x, p.y - CELL_H / 2, 0xfff1b0, 8, { shape: 'spark', speed: 9, size: 5, life: 0.35, up: 6 });
-          const v = this.cells.get(this.key(e.col, e.row));
-          if (v) this.tw.add(0.35, (k) => { if (v.c.destroyed) return; v.c.rotation = Math.sin(k * Math.PI * 4) * 0.08 * (1 - k); v.c.y = e.row * CELL_H + CELL_H / 2 + Math.sin(k * Math.PI * 4) * 3 * (1 - k); });
-          floatText(this.fxLayer, this.tw, 'KLONG!', p.x, p.y - 20, 0xc8d2e6, 28);
-          this.ctx.shake(2);
-          if (this.clanks++ % 4 === 0) this.hint('Amboss! Nur ein Hochsprung ⬆ zerschmettert ihn – oder geh eine Spalte weiter.');
-          break;
-        }
-        case 'anvil':
-          this.anvilFall(e.col, e.row, e.depth);
-          break;
         case 'turbo': {
           const p = this.cellPos(e.col, e.row);
           this.banner('BOING! TURBO', 0xff7ad9, 60);
@@ -429,34 +410,6 @@ export class MineTime implements GameModule {
     const p = this.cellPos(col, row);
     for (let r = 0; r < 5; r++) this.particles.burst(p.x, p.y + r * CELL_H, 0x9fd0ff, 3, { shape: 'spark', speed: 9, size: 6, life: 0.5 });
     this.ctx.sfx.thunder();
-  }
-
-  /** Smashed anvil: it drops 2–3 rows down its column and lands with a heavy impact. */
-  private anvilFall(col: number, row: number, depth: number): void {
-    const from = this.cellPos(col, row);
-    const to = this.cellPos(col, Math.min(this.grid.rows - 1, row + depth));
-    const g = new Graphics();
-    drawBlock(g, { kind: 'anvil', hp: 1, maxHp: 1 }, CELL_W, CELL_H, col, row, this.grid.level);
-    g.pivot.set(CELL_W / 2, CELL_H / 2);
-    g.position.set(from.x, from.y);
-    this.fxLayer.addChild(g);
-    floatText(this.fxLayer, this.tw, 'WUMMS!', from.x, from.y - 24, 0xffd23f, 44);
-    const fall = 0.12 + depth * 0.05;
-    this.tw.add(fall, (k) => { g.y = from.y + (to.y - from.y) * k * k; g.rotation = 0.06 * Math.sin(k * 6); }, () => {
-      if (this.destroyed) { g.destroy(); return; }
-      this.ctx.sfx.anvilCrash();
-      this.ctx.shake(26);
-      this.vfx.flash(0xffffff, 0.25);
-      this.particles.burst(to.x, to.y + CELL_H / 3, 0x8a8f9c, 14, { speed: 12, size: 9, up: 8 });
-      this.particles.burst(to.x, to.y + CELL_H / 3, 0xfff1b0, 12, { shape: 'spark', speed: 14, size: 6, life: 0.5 });
-      const ring = new Graphics();
-      ring.position.set(to.x, to.y + CELL_H / 3);
-      this.fxLayer.addChild(ring);
-      this.tw.add(0.35, (k) => {
-        ring.clear().ellipse(0, 0, 30 + 120 * easeOutCubic(k), 10 + 30 * easeOutCubic(k)).stroke({ width: 8 * (1 - k) + 1, color: 0xdfe6ee, alpha: 0.8 * (1 - k) });
-        g.alpha = 1 - k;
-      }, () => { ring.destroy(); g.destroy(); });
-    });
   }
 
   /** column of the last cross drill (blocks break outwards from it) */

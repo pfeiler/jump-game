@@ -66,7 +66,6 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 * **Zeit-Blöcke** ⏱ (türkis mit Stoppuhr): **+5 s** auf den Countdown – 2 pro Level (ab Level 3: 3), über die Tiefe verteilt.
   Zählen auch, wenn TNT, Bohrer oder ein Einsturz sie erwischt. Animation (< 1 s): Funken, Stoppuhr fliegt zum Timer,
   Timer blinkt grün und pulsiert, Ring + „+5 s“, Glockenspiel-Sound.
-* **Wucht-Amboss** (≈ 3 % in Level 1, bis ≈ 4–5 % in der Tiefe/späteren Leveln): normale Landungen prallen ab („KLONG!“, kein Schaden, keine Strafe), nur ein **Hochsprung** zerschmettert ihn – dann kracht er 2–3 Blöcke tief durch seine Spalte (Bildschirmwackeln). Nie in der Ausgangs-Spalte, höchstens einer pro Reihe, nie zwei übereinander → es gibt immer einen normalen Weg.
 * **Feder-Block** (≈ 4 %): bricht mit 1 Treffer und gibt **Boing-Turbo** für 4 s: normale Landung = 2 Treffer, Hochsprung = 3. Rosa Aura + Countdown-Ring um den Helm, Glitzerspur, „BOING! TURBO“. Mehrere Federn verlängern (max. 8 s); in der Level-Pause eingefroren.
 * Power-ups: **Bohrer** (ganze Spalte), **Quer-Bohrer** (ganze Reihe, links und rechts; Blitze laufen waagerecht die Reihe entlang), **Hammer** (8 s lang jeder Schlag zählt doppelt), **Magnet** (sammelt nur Edelsteine im Radius 1 um den Block – die acht Nachbarfelder, nicht das ganze Feld und keine anderen Blöcke).
 * Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, kurze, halbtransparente Rauch-/Staubwolke – nach ≤ 1 s weg, damit die Sicht frei bleibt,
@@ -203,14 +202,14 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – vitest (Amboss & Boing-Turbo, Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Personenwahl,
+* `npm test` – vitest (Boing-Turbo, Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Personenwahl,
   Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
 * `node scripts/timeshots.mjs` – kurzer TNT-Rauch + Zeit-Block-Animation, Timer in der Pause eingefroren (Screenshots 21–22).
 * `node scripts/drillshots.mjs` – Quer-Bohrer und Punkte-Pop-ups per Tastatur (Screenshots 23–24).
-* `node scripts/anvilshots.mjs` – Amboss (Klong/Hochsprung), Boing-Turbo inkl. Pause-Einfrieren, Edelstein-Nahaufnahme (Screenshots 25–27).
+* `node scripts/springshots.mjs` – Boing-Turbo inkl. Pause-Einfrieren und Edelstein-Nahaufnahme (Screenshots 26–27).
 * `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.
 * `node scripts/hopcam.mjs` – kleine Hüpfer mit künstlicher Kamera (`Y4M=…`), zählt erkannte Landungen. Video z. B. per ffmpeg:
   Foto auf Wurfparabeln bewegen (9,6 cm Hüpfhöhe = 0,28 s Flug, alle 0,5 s).
