@@ -26,13 +26,13 @@ const place = (kind, col, extraBombs = false) => page.evaluate(([kind, col, extr
   g.buildCells(false);
   return r;
 }, [kind, col, extraBombs]);
-const col = await page.evaluate(() => window.__jump.scene.game.state.cols[0]);
+const col = await page.evaluate(() => window.__jump.scene.game.state.col);
 await place('bomb', col, true);
 await page.keyboard.press('Space');
 for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) { await wait(60); await page.screenshot({ path: `/tmp/fx-tnt-${n}.png` }); }
 console.log('after TNT', JSON.stringify(await page.evaluate(() => window.__jump.scene.game.state)));
 await wait(2500);
-const col2 = await page.evaluate(() => window.__jump.scene.game.state.cols[0]);
+const col2 = await page.evaluate(() => window.__jump.scene.game.state.col);
 await place('drill', col2);
 await page.keyboard.press('Space');
 for (const [ms, n] of [[40, 'a'], [120, 'b'], [220, 'c'], [330, 'd']]) { await wait(40); await page.screenshot({ path: `/tmp/fx-drill-${n}.png` }); }

@@ -59,14 +59,5 @@ console.log('highscores', hs);
 await page.keyboard.press('Enter');
 await wait(800);
 console.log('scene after end', await page.evaluate(() => window.__jump.scene?.name));
-// 2-player mode quick check
-await page.keyboard.press('Digit2');
-await wait(300);
-await page.screenshot({ path: `${out}/09-menu-2p.png` });
-await page.keyboard.press('Enter');
-await wait(3800);
-for (let i = 0; i < 12; i++) { await page.keyboard.press(i % 2 ? 'KeyW' : 'ArrowUp'); await wait(250); }
-await page.screenshot({ path: `${out}/10-gameplay-2p.png` });
-console.log('2p state', JSON.stringify(await page.evaluate(() => window.__jump.scene?.game?.state)));
 console.log(logs.filter((l) => !l.includes('[debug]')).join('\n'));
 await browser.close();

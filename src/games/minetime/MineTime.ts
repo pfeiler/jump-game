@@ -13,7 +13,7 @@ const CELL_W = 110;
 const CELL_H = 74;
 const GX = (W - COLS * CELL_W) / 2;
 const GY = 122;
-const PLAYER_COLORS = [0x3fd0ff, 0xffa53d];
+const PLAYER_COLOR = 0x3fd0ff;
 const params = new URLSearchParams(location.search);
 export const ROUND_TIME = Number(params.get('time')) || 120;
 
@@ -31,9 +31,9 @@ export class MineTime implements GameModule {
   private fxLayer = new Container();
   private hud = new Container();
   private highlight = new Graphics();
-  private markers: Container[] = [];
-  /** per-player turbo aura + countdown ring (child of the marker) */
-  private turboRings: Graphics[] = [];
+  private marker = new Container();
+  /** turbo aura + countdown ring (child of the marker) */
+  private turboRing = new Graphics();
   private trailT = 0;
   /** gem twinkles (one Graphics redrawn per frame, lives in the scrolling grid layer) */
   private twinkle = new Graphics();
@@ -52,7 +52,7 @@ export class MineTime implements GameModule {
   private scrollY = 0;
   private timeLeft = ROUND_TIME;
   private t = 0;
-  private cols: number[] = [0, 3];
+  private col = 2;
   private ended = false;
   private advancing = false;
   private lastTick = 99;
@@ -63,7 +63,7 @@ export class MineTime implements GameModule {
   private vfx!: Vfx;
   private pauseLayer = new Container();
   private pause: {
-    hold: ArmsUpHold; still: StillnessCheck[]; ring: Graphics; status: Text; t: number; closing: boolean; camera: boolean;
+    hold: ArmsUpHold; still: StillnessCheck; ring: Graphics; status: Text; t: number; closing: boolean; camera: boolean;
     onKey: (e: KeyboardEvent) => void; level: number;
   } | null = null;
   /** seconds already added to timeLeft but not yet shown (clock icon still flying to the timer) */
@@ -76,14 +76,13 @@ export class MineTime implements GameModule {
   init(ctx: GameContext): void {
     this.ctx = ctx;
     this.grid = new MineGrid(Date.now() & 0xffffffff, 1);
-    this.cols = ctx.players === 2 ? [1, 4] : [2, 0];
+    this.col = 2;
     ctx.root.addChild(this.layer);
 
     // cave frame + darker "air" behind blocks (the player cut-out shows through)
     const frame = new Graphics();
     frame.roundRect(GX - 14, GY - 10, COLS * CELL_W + 28, VISIBLE_ROWS * CELL_H + 20, 18).fill({ color: 0x2a1a10, alpha: 0.85 }).stroke({ width: 6, color: 0x5a3a1c });
     frame.rect(GX, GY, COLS * CELL_W, VISIBLE_ROWS * CELL_H).fill({ color: 0x0b0710, alpha: 0.35 });
-    if (ctx.players === 2) frame.rect(GX + 3 * CELL_W - 2, GY - 10, 4, VISIBLE_ROWS * CELL_H + 20).fill(0xffffff);
     this.layer.addChild(frame);
 
     const mask = new Graphics().rect(GX, GY, COLS * CELL_W, VISIBLE_ROWS * CELL_H).fill(0xffffff);
@@ -92,20 +91,15 @@ export class MineTime implements GameModule {
     this.gridLayer.mask = mask;
     this.layer.addChild(mask, this.highlight, this.gridLayer);
 
-    for (let i = 0; i < ctx.players; i++) {
-      const m = new Container();
+    {
       const g = new Graphics();
       // little miner helmet marker
-      g.circle(0, 0, 20).fill(PLAYER_COLORS[i]).stroke({ width: 4, color: 0xffffff });
-      g.rect(-24, 2, 48, 8).fill(PLAYER_COLORS[i]);
+      g.circle(0, 0, 20).fill(PLAYER_COLOR).stroke({ width: 4, color: 0xffffff });
+      g.rect(-24, 2, 48, 8).fill(PLAYER_COLOR);
       g.circle(0, -8, 7).fill(0xfff7a8).stroke({ width: 2, color: 0x806000 });
       g.poly([-10, 14, 10, 14, 0, 30]).fill(0xffffff);
-      const ring = new Graphics();
-      m.addChild(ring, g);
-      this.turboRings.push(ring);
-      if (ctx.players === 2) { const l = label(`${i + 1}`, 18, 0x1a1030, { stroke: { width: 0, color: 0 } }); l.y = 4; m.addChild(l); }
-      this.markers.push(m);
-      this.layer.addChild(m);
+      this.marker.addChild(this.turboRing, g);
+      this.layer.addChild(this.marker);
     }
 
     this.particles = new ParticleSystem(W, H - 4);
@@ -293,7 +287,7 @@ export class MineTime implements GameModule {
     });
   }
 
-  private onEvents(ev: MineEvent[], player: number): void {
+  private onEvents(ev: MineEvent[]): void {
     const sfx = this.ctx.sfx;
     let breaks = 0;
     let bombs = 0;
@@ -385,11 +379,11 @@ export class MineTime implements GameModule {
           break;
         case 'turbo': {
           const p = this.cellPos(e.col, e.row);
-          this.banner(this.ctx.players === 2 ? `BOING! TURBO P${e.player + 1}` : 'BOING! TURBO', 0xff7ad9, 60);
+          this.banner('BOING! TURBO', 0xff7ad9, 60);
           sfx.boing();
           this.particles.burst(p.x, p.y, 0xff7ad9, 14, { shape: 'spark', speed: 11, size: 7, life: 0.6, up: 9 });
-          const m = this.markers[e.player];
-          if (m) this.tw.add(0.4, (k) => { if (!m.destroyed) m.scale.set(1 + Math.sin(k * Math.PI * 3) * 0.35 * (1 - k)); });
+          const m = this.marker;
+          this.tw.add(0.4, (k) => { if (!m.destroyed) m.scale.set(1 + Math.sin(k * Math.PI * 3) * 0.35 * (1 - k)); });
           this.ctx.shake(5);
           break;
         }
@@ -414,7 +408,6 @@ export class MineTime implements GameModule {
     for (const pop of planGemPopups(gemHits)) this.gemPopup(pop.col, pop.row, pop.text, GEM_COLORS[pop.gemType], pop.size, pop.delay, pop.combined);
     if (breaks) this.ctx.sfx.breakBlock(breaks > 3);
     else if (!ev.some((e) => e.type === 'damage' || e.type === 'empty')) sfx.hit();
-    void player;
   }
 
   /** Drill power-up: lightning strikes down along both sides of the column and both sides of the cave. */
@@ -548,7 +541,7 @@ export class MineTime implements GameModule {
       if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') && (this.pause?.t ?? 0) > 0.6) { e.preventDefault(); this.continueFromPause(); }
     };
     window.addEventListener('keydown', onKey);
-    this.pause = { hold: new ArmsUpHold(), still: [new StillnessCheck(), new StillnessCheck()], ring, status, t: 0, closing: false, camera, onKey, level: this.grid.level };
+    this.pause = { hold: new ArmsUpHold(), still: new StillnessCheck(), ring, status, t: 0, closing: false, camera, onKey, level: this.grid.level };
   }
 
   private updatePause(dt: number, now: number): void {
@@ -558,13 +551,13 @@ export class MineTime implements GameModule {
     let anyUp = false;
     let grounded = true;
     if (this.cameraActive) {
-      for (let i = 0; i < this.ctx.players; i++) {
-        const tp = this.ctx.input.tracked[i];
-        if (!tp.visible) { P.still[i].reset(); continue; }
+      const tp = this.ctx.input.tracked;
+      if (!tp.visible) P.still.reset();
+      else {
         // shoulder line must stay still (second jump guard, independent of the jump detector)
         const ub = upperBody(tp.landmarks);
-        const quiet = ub ? P.still[i].update(now, ub.y, ub.torso) : false;
-        if (!anyUp && armsUp(tp.landmarks)) {
+        const quiet = ub ? P.still.update(now, ub.y, ub.torso) : false;
+        if (armsUp(tp.landmarks)) {
           anyUp = true;
           const st = tp.detector.state;
           grounded = quiet && st !== 'AIRBORNE' && st !== 'APEX' && st !== 'TAKEOFF';
@@ -612,15 +605,12 @@ export class MineTime implements GameModule {
   }
 
   // ---------- loop ----------
-  private colFor(x: number, i: number): number {
-    const n = this.ctx.players === 2 ? 3 : COLS;
-    const local = this.ctx.players === 2 ? (i === 0 ? x / 0.5 : (x - 0.5) / 0.5) : x;
-    const off = this.ctx.players === 2 ? i * 3 : 0;
-    const cur = this.cols[i] - off;
-    const pos = Math.min(0.9999, Math.max(0, local)) * n;
+  private colFor(x: number): number {
+    const pos = Math.min(0.9999, Math.max(0, x)) * COLS;
+    const cur = this.col;
     // hysteresis: stay in the current column until clearly beyond its border
-    if (pos > cur - 0.15 && pos < cur + 1.15) return cur + off;
-    return Math.floor(pos) + off;
+    if (pos > cur - 0.15 && pos < cur + 1.15) return cur;
+    return Math.floor(pos);
   }
 
   update(dt: number): void {
@@ -639,18 +629,17 @@ export class MineTime implements GameModule {
       if (this.timeLeft <= 0) this.finish();
     }
 
-    const inputs = this.ctx.input.poll();
-    for (const p of inputs) {
-      this.cols[p.id] = this.colFor(p.x, p.id);
-      if (this.ended || this.advancing) continue;
+    const p = this.ctx.input.poll()[0];
+    this.col = this.colFor(p.x);
+    if (!this.ended && !this.advancing) {
       for (const land of p.landings) {
         this.hits++;
         if (land.high) this.highJumps++;
-        const turbo = this.grid.turboActive(p.id, now);
-        const ev = this.grid.hit(this.cols[p.id], now, land.high, p.id);
-        if (turbo) floatText(this.fxLayer, this.tw, land.high ? 'TURBO x3!' : 'TURBO x2!', this.markers[p.id].x, this.markers[p.id].y - 52, 0xff7ad9, 26);
-        this.onEvents(ev, p.id);
-        if (land.high) floatText(this.fxLayer, this.tw, 'HOCHSPRUNG x2!', this.cellPos(this.cols[p.id], this.grid.viewTop).x, GY + 190, 0x7df9ff, 30);
+        const turbo = this.grid.turboActive(now);
+        const ev = this.grid.hit(this.col, now, land.high);
+        if (turbo) floatText(this.fxLayer, this.tw, land.high ? 'TURBO x3!' : 'TURBO x2!', this.marker.x, this.marker.y - 52, 0xff7ad9, 26);
+        this.onEvents(ev);
+        if (land.high) floatText(this.fxLayer, this.tw, 'HOCHSPRUNG x2!', this.cellPos(this.col, this.grid.viewTop).x, GY + 190, 0x7df9ff, 30);
       }
     }
 
@@ -665,18 +654,14 @@ export class MineTime implements GameModule {
     // column highlight + markers
     const pulse = 0.5 + 0.5 * Math.sin(this.t * 6);
     this.highlight.clear();
-    for (let i = 0; i < this.ctx.players; i++) {
-      const c = this.cols[i];
-      const x = GX + c * CELL_W;
-      this.highlight.rect(x, GY, CELL_W, VISIBLE_ROWS * CELL_H).fill({ color: PLAYER_COLORS[i], alpha: 0.16 + 0.1 * pulse });
-      const top = this.grid.topRow(c);
-      const ty = GY + (top - this.scrollY) * CELL_H;
-      const m = this.markers[i];
-      const tx = x + CELL_W / 2;
-      m.position.set(m.x ? m.x + (tx - m.x) * Math.min(1, dt * 18) : tx, Math.max(GY - 30, Math.min(H - 60, ty - 32)) + Math.sin(this.t * 5 + i) * 3);
-      if (top < this.grid.rows) {
-        this.highlight.roundRect(x + 2, ty + 2, CELL_W - 4, CELL_H - 4, 10).stroke({ width: 5, color: PLAYER_COLORS[i], alpha: 0.6 + 0.4 * pulse });
-      }
+    const x = GX + this.col * CELL_W;
+    this.highlight.rect(x, GY, CELL_W, VISIBLE_ROWS * CELL_H).fill({ color: PLAYER_COLOR, alpha: 0.16 + 0.1 * pulse });
+    const top = this.grid.topRow(this.col);
+    const ty = GY + (top - this.scrollY) * CELL_H;
+    const tx = x + CELL_W / 2;
+    this.marker.position.set(this.marker.x ? this.marker.x + (tx - this.marker.x) * Math.min(1, dt * 18) : tx, Math.max(GY - 30, Math.min(H - 60, ty - 32)) + Math.sin(this.t * 5) * 3);
+    if (top < this.grid.rows) {
+      this.highlight.roundRect(x + 2, ty + 2, CELL_W - 4, CELL_H - 4, 10).stroke({ width: 5, color: PLAYER_COLOR, alpha: 0.6 + 0.4 * pulse });
     }
     this.highlight.mask = null;
     this.updateTurbo(dt, now);
@@ -709,11 +694,11 @@ export class MineTime implements GameModule {
     this.trailT += dt;
     const emit = this.trailT > 0.06;
     if (emit) this.trailT = 0;
-    for (let i = 0; i < this.ctx.players; i++) {
-      const g = this.turboRings[i];
-      const left = this.grid.turboUntil[i] - ref;
+    {
+      const g = this.turboRing;
+      const left = this.grid.turboUntil - ref;
       g.clear();
-      if (left <= 0) continue;
+      if (left > 0) {
       const frac = Math.min(1, left / TURBO_DURATION);
       const blink = left < 1 ? 0.5 + 0.5 * Math.sin(this.t * 20) : 1;
       g.circle(0, 0, 38 + 4 * Math.sin(this.t * 10)).fill({ color: 0xff7ad9, alpha: 0.28 * blink });
@@ -724,8 +709,8 @@ export class MineTime implements GameModule {
       for (let k = 1; k <= 6; k++) g.lineTo(k % 2 ? 9 : -9, 32 + k * 3 * (1 + 0.3 * Math.sin(this.t * 14)));
       g.stroke({ width: 3, color: 0xffd1e8 });
       if (emit && !this.pause) {
-        const m = this.markers[i];
-        this.particles.burst(m.x + (Math.random() - 0.5) * 30, m.y + 20, 0xff7ad9, 1, { shape: 'spark', speed: 2, size: 6, life: 0.4 });
+        this.particles.burst(this.marker.x + (Math.random() - 0.5) * 30, this.marker.y + 20, 0xff7ad9, 1, { shape: 'spark', speed: 2, size: 6, life: 0.4 });
+      }
       }
     }
   }
@@ -777,8 +762,8 @@ export class MineTime implements GameModule {
   /** for tests / debugging */
   get state() {
     return {
-      score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, cols: this.cols,
-      clocks: this.grid.clocks, turboUntil: [...this.grid.turboUntil], turboLeft: this.grid.turboUntil.map((u) => Math.max(0, u - (this.pause ? this.pauseStartedAt : performance.now() / 1000))), timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
+      score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, col: this.col,
+      clocks: this.grid.clocks, turboUntil: this.grid.turboUntil, turboLeft: Math.max(0, this.grid.turboUntil - (this.pause ? this.pauseStartedAt : performance.now() / 1000)), timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
       paused: !!this.pause, pauseProgress: this.pause?.hold.progress ?? 0, vfx: { ...this.vfx.stats, active: this.vfx.active },
     };
   }

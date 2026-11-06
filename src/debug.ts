@@ -28,15 +28,12 @@ export class DebugOverlay {
     c.clearRect(0, 0, window.innerWidth, window.innerHeight);
     const r = this.rect();
     const cam = this.input.camera;
-    const colors = ['#3fd0ff', '#ffa53d'];
-
     // landmarks (mirrored) on top of the camera layer
     if (cam && cam.latest) {
-      for (let i = 0; i < this.input.players; i++) {
-        const lm = this.input.tracked[i].landmarks;
-        if (!lm) continue;
+      const lm = this.input.tracked.landmarks;
+      if (lm) {
         const P = (k: number) => [r.camX + (1 - lm[k].x) * r.camW, r.camY + lm[k].y * r.camH];
-        c.strokeStyle = colors[i];
+        c.strokeStyle = '#3fd0ff';
         c.lineWidth = 3;
         for (const [a, b] of POSE_EDGES) {
           const [x1, y1] = P(a), [x2, y2] = P(b);
@@ -45,7 +42,7 @@ export class DebugOverlay {
         c.fillStyle = '#fff';
         for (let k = 0; k < lm.length; k++) { const [x, y] = P(k); c.fillRect(x - 2, y - 2, 4, 4); }
         // hip centre + baseline
-        const det = this.input.tracked[i].detector;
+        const det = this.input.tracked.detector;
         const hx = r.camX + (1 - (lm[23].x + lm[24].x) / 2) * r.camW;
         const hy = r.camY + ((lm[23].y + lm[24].y) / 2) * r.camH;
         c.fillStyle = '#ff3b5c';
@@ -63,9 +60,9 @@ export class DebugOverlay {
 
     // hip curve graph
     const gx = 10, gw = 420, gh = 140;
-    let gy = window.innerHeight - 10 - gh;
-    for (let i = 0; i < this.input.players; i++, gy -= gh + 10) {
-      const tp = this.input.tracked[i];
+    const gy = window.innerHeight - 10 - gh;
+    {
+      const tp = this.input.tracked;
       c.fillStyle = 'rgba(0,0,0,0.6)';
       c.fillRect(gx, gy, gw, gh);
       const det = tp.detector;
@@ -76,12 +73,12 @@ export class DebugOverlay {
       const h = tp.history;
       if (h.length > 1) {
         const t1 = h[h.length - 1].t;
-        c.strokeStyle = colors[i]; c.lineWidth = 2; c.beginPath();
+        c.strokeStyle = '#3fd0ff'; c.lineWidth = 2; c.beginPath();
         h.forEach((s, k) => { const x = gx + gw - (t1 - s.t) * (gw / 6); const y = Y(Math.max(-0.3, Math.min(1.5, s.rise))); if (k) c.lineTo(x, y); else c.moveTo(x, y); });
         c.stroke();
       }
       c.fillStyle = '#fff'; c.font = '13px monospace';
-      c.fillText(`P${i + 1} ${det.state}  rise=${det.rise.toFixed(2)} v=${det.velocity.toFixed(2)} scale=${det.scale.toFixed(3)} x=${tp.x.toFixed(2)} σ=${det.noise.toFixed(3)} n=${det.stats.landings} ${tp.visible ? '' : '(nicht sichtbar)'}`, gx + 6, gy + 14);
+      c.fillText(`${det.state}  rise=${det.rise.toFixed(2)} v=${det.velocity.toFixed(2)} scale=${det.scale.toFixed(3)} x=${tp.x.toFixed(2)} σ=${det.noise.toFixed(3)} n=${det.stats.landings} ${tp.visible ? '' : '(nicht sichtbar)'}`, gx + 6, gy + 14);
     }
 
     // stats

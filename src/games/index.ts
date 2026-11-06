@@ -7,6 +7,5 @@ registerGame({
   title: 'Mine Time',
   subtitle: 'Grabe dich durch die Höhle!',
   color: 0xd9822b,
-  supportsTwoPlayers: true,
   create: () => new MineTime(),
 });

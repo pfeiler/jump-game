@@ -32,7 +32,6 @@ class App {
   jumpTuning: JumpTuning = initialTuning;
   sfx = new Sfx();
   camera: CameraTracker | null = null;
-  players: 1 | 2 = params.get('players') === '2' ? 2 : 1;
   debug!: DebugOverlay;
   private shakeAmt = 0;
   private camVersion = -1;
@@ -59,9 +58,8 @@ class App {
     this.stage.addChild(bg, this.sceneLayer);
     this.pixi.stage.addChild(this.stage);
 
-    this.input.setPlayers(this.players);
     this.debug = new DebugOverlay(this.input, () => this.layoutRect());
-    this.debug.extra = () => [`Szene: ${this.scene?.name ?? '-'} · Spieler: ${this.players}`];
+    this.debug.extra = () => [`Szene: ${this.scene?.name ?? '-'}`];
     if (params.get('debug') === '1') this.debug.toggle();
     window.addEventListener('keydown', (e) => {
       if (e.code === 'F2' || (e.code === 'KeyB' && !this.input.textMode)) this.debug.toggle();
@@ -106,7 +104,7 @@ class App {
   }
 
   goJumpCalib(after: () => void): void {
-    this.setScene(new JumpCalibScene(this.input, this.sfx, this.players, this.jumpTuning, (saved) => {
+    this.setScene(new JumpCalibScene(this.input, this.sfx, this.jumpTuning, (saved) => {
       if (saved) this.jumpTuning = saved;
       after();
     }));
@@ -119,7 +117,6 @@ class App {
     return {
       state,
       message: state === 'starting' ? (c?.status.message || this.cameraMsg) : this.cameraMsg,
-      players: this.players,
       cam: this.camSprite ? { x: this.camSprite.x, y: this.camSprite.y, w: this.camSprite.width, h: this.camSprite.height } : null,
     };
   }
@@ -138,7 +135,7 @@ class App {
     this.input.attachCamera(cam);
     this.cameraMsg = 'Kamera wird gestartet … (bitte Zugriff erlauben)';
     try {
-      await cam.start(this.players);
+      await cam.start();
       const tex = Texture.from(cam.canvas);
       const sp = new Sprite(tex);
       // cover-fit the 1280×720 stage
@@ -169,7 +166,7 @@ class App {
     const c = this.camera;
     if (!c) return 'Tastatur-Modus';
     const s = c.status;
-    const who = this.input.tracked.slice(0, this.players).map((p, i) => `Spieler ${i + 1}: ${p.visible ? 'erkannt ✓' : 'nicht im Bild'}`).join(' · ');
+    const who = this.input.tracked.visible ? 'erkannt ✓' : 'nicht im Bild';
     return `Kamera aktiv (${s.mode === 'worker' ? 'Web Worker' : 'Hauptthread'}, ${s.delegate}${s.segmentation ? ', Ausschnitt' : ''}) · ${who}`;
   }
 
@@ -179,25 +176,20 @@ class App {
     this.sceneLayer.addChild(s.container);
   }
 
-  setPlayers(n: 1 | 2): void {
-    this.players = n;
-    this.input.setPlayers(n);
-  }
-
   goMenu(): void {
-    this.setScene(new MenuScene(this.input, this.sfx, () => this.players, (n) => this.setPlayers(n), (def) => this.calibrate(def), () => this.cameraStatus()));
+    this.setScene(new MenuScene(this.input, this.sfx, (def) => this.calibrate(def), () => this.cameraStatus()));
   }
 
   calibrate(def: GameDefinition): void {
-    this.setScene(new CalibrationScene(this.input, this.sfx, this.players, () => this.play(def), () => this.goJumpCalib(() => this.calibrate(def))));
+    this.setScene(new CalibrationScene(this.input, this.sfx, () => this.play(def), () => this.goJumpCalib(() => this.calibrate(def))));
   }
 
   play(def: GameDefinition): void {
-    this.setScene(new GameScene(def, this.input, this.sfx, this.players, (a) => this.shake(a), (r) => this.endGame(def, r)));
+    this.setScene(new GameScene(def, this.input, this.sfx, (a) => this.shake(a), (r) => this.endGame(def, r)));
   }
 
   endGame(def: GameDefinition, r: GameResult): void {
-    this.setScene(new EndScene(def.id, r, this.players, this.input, this.sfx, () => this.goMenu()));
+    this.setScene(new EndScene(def.id, r, this.input, this.sfx, () => this.goMenu()));
   }
 
   shake(a: number): void {

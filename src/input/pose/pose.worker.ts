@@ -16,8 +16,6 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
     } catch (err) {
       post({ type: 'error', message: String((err as Error)?.message ?? err) });
     }
-  } else if (msg.type === 'config') {
-    if (ready) engine.setNumPoses(msg.numPoses);
   } else if (msg.type === 'frame') {
     if (!ready) { msg.bitmap.close(); return; }
     const t0 = performance.now();

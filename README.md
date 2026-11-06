@@ -30,13 +30,12 @@ npm run preview    # http://localhost:4173/jump-game/
 | Hochsprung (= doppelter Schlag) | lange Flugzeit (≥ 0,5 s) | Shift + Leertaste / E / ↓ |
 | Menüfeld aktivieren | übers Feld stellen und springen | Enter / Klick |
 | Weiter nach der Level-Pause | beide Arme über den Kopf heben und ~0,65 s halten (nicht springen) | Enter / Leertaste |
-| 2 Spieler | linke / rechte Bildhälfte | P1: A/D + W (E hoch), P2: ←/→ + ↑ (↓ hoch) |
 | Debug-Overlay | – | **B** oder F2 |
 | Ton an/aus | – | M |
 
 Die Kamera wird schon beim Laden der Seite angefragt (dafür ist keine Nutzer-Geste nötig): Der Startbildschirm
 zeigt das gespiegelte Live-Bild mit Freisteller und Skelett, den Hinweis „Stell dich so hin, dass du ganz im Bild bist“
-und einen grünen Haken „Spieler 1 erkannt ✓“, sobald Kopf bis Füße zu sehen sind. Kamera und Pose-Tracking laufen
+und einen grünen Haken „Du bist im Bild ✓“, sobald Kopf bis Füße zu sehen sind. Kamera und Pose-Tracking laufen
 danach ohne Neustart durch Menü, Kalibrierung und Spiel. Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe).
 Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis und alles läuft per Tastatur.
 
@@ -54,7 +53,6 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 | `?worker=0` | Pose-Erkennung im Hauptthread statt im Web Worker |
 | `?high=0.6` | Flugzeit-Schwelle (s) für Hochsprung |
 | `?sens=1.5` | Empfindlichkeit der Sprungerkennung (Standard 1; > 1 = kleinere Hüpfer zählen, < 1 = unempfindlicher, 0,3–3). Überschreibt den gespeicherten Wert aus der Sprungkalibrierung |
-| `?players=2` | direkt im 2-Spieler-Modus starten |
 | `?time=60` | Rundenlänge in Sekunden (Standard 120) |
 
 ## Mine Time
@@ -67,9 +65,9 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 * Bomben räumen den Radius 1 frei und lösen Kettenreaktionen aus.
 * **Zeit-Blöcke** ⏱ (türkis mit Stoppuhr): **+5 s** auf den Countdown – 2 pro Level (ab Level 3: 3), über die Tiefe verteilt.
   Zählen auch, wenn TNT, Bohrer oder ein Einsturz sie erwischt. Animation (< 1 s): Funken, Stoppuhr fliegt zum Timer,
-  Timer blinkt grün und pulsiert, Ring + „+5 s“, Glockenspiel-Sound. Im 2-Spieler-Modus teilen sich beide den Timer.
+  Timer blinkt grün und pulsiert, Ring + „+5 s“, Glockenspiel-Sound.
 * **Wucht-Amboss** (≈ 3 % in Level 1, bis ≈ 4–5 % in der Tiefe/späteren Leveln): normale Landungen prallen ab („KLONG!“, kein Schaden, keine Strafe), nur ein **Hochsprung** zerschmettert ihn – dann kracht er 2–3 Blöcke tief durch seine Spalte (Bildschirmwackeln). Nie in der Ausgangs-Spalte, höchstens einer pro Reihe, nie zwei übereinander → es gibt immer einen normalen Weg.
-* **Feder-Block** (≈ 4 %): bricht mit 1 Treffer und gibt **Boing-Turbo** für 4 s (nur dem Spieler, der ihn trifft): normale Landung = 2 Treffer, Hochsprung = 3. Rosa Aura + Countdown-Ring um den Helm, Glitzerspur, „BOING! TURBO“. Mehrere Federn verlängern (max. 8 s); in der Level-Pause eingefroren.
+* **Feder-Block** (≈ 4 %): bricht mit 1 Treffer und gibt **Boing-Turbo** für 4 s: normale Landung = 2 Treffer, Hochsprung = 3. Rosa Aura + Countdown-Ring um den Helm, Glitzerspur, „BOING! TURBO“. Mehrere Federn verlängern (max. 8 s); in der Level-Pause eingefroren.
 * Power-ups: **Bohrer** (ganze Spalte), **Quer-Bohrer** (ganze Reihe, links und rechts; Blitze laufen waagerecht die Reihe entlang), **Hammer** (8 s lang jeder Schlag zählt doppelt), **Magnet** (sammelt nur Edelsteine im Radius 1 um den Block – die acht Nachbarfelder, nicht das ganze Feld und keine anderen Blöcke).
 * Effekte: **TNT** = große Explosion (Blitzlicht, Feuerball, Druckwellen-Ringe, kurze, halbtransparente Rauch-/Staubwolke – nach ≤ 1 s weg, damit die Sicht frei bleibt,
   Bildschirmwackeln, „BUMM!“); **Bohrer** = Blitze schlagen links und rechts ein (gezackt, weiß/blau, Bildschirm-Flackern,
@@ -78,12 +76,11 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
   Weiter geht's, wenn ein Spieler beide Arme hochhebt (Handgelenke klar über Schultern oder Kopf) und das ~0,65 s hält –
   ein Ring füllt sich dabei. Gegen Fehlauslösung: erst 1 s nach Erscheinen aktiv, Fortschritt fällt beim Senken zurück,
   und er wird zurückgesetzt, solange der Sprungautomat „in der Luft“ meldet oder sich die Schulterlinie in der letzten
-  Sekunde um mehr als 0,12 Rumpflängen bewegt hat. Im 2-Spieler-Modus reicht ein Spieler. Ohne Kamera (`?nocam`):
+  Sekunde um mehr als 0,12 Rumpflängen bewegt hat. Ohne Kamera (`?nocam`):
   Enter / Leertaste (Tastendrücke in den ersten 0,6 s werden ignoriert). Zeit und Hammer laufen in der Pause nicht weiter.
 * 2 Minuten Zeit. Punkte = Edelsteine + Tiefenbonus × Combo-Multiplikator (×1,5 ab 5, ×2 ab 10, ×3 ab 20 Treffern in Folge).
   Es gibt **keine Abzüge und kein Verlieren**.
 * Am Ende: Vorname/Initialen (max. 10 Zeichen) eintragen → lokale Highscore-Liste.
-* 2-Spieler-Modus: Bildschirm wird geteilt, jeder hat 3 Spalten, gemeinsamer Punktestand.
 
 ## Architektur
 
@@ -96,11 +93,11 @@ src/
   games/minetime/        grid.ts (reine Spiellogik, getestet), draw.ts (Vektor-Grafik), MineTime.ts (Darstellung)
   input/camera.ts        getUserMedia, Frame-Schleife, Worker-Kommunikation, Freisteller-Compositing
   input/pose/            MediaPipe-Wrapper (engine.ts) + Modul-Worker (pose.worker.ts)
-  input/players.ts       Hüftmitte + Körpergröße aus Landmarks, Zuordnung der Personen zu Spielern
+  input/players.ts       Hüftmitte + Körpergröße aus Landmarks, die größte Person im Bild
   input/jumpDetector.ts  Zustandsautomat GROUNDED → TAKEOFF → AIRBORNE/APEX → LANDING
   input/oneEuro.ts       One-Euro-Filter
   input/armsUp.ts        Arme-hoch-Geste + Halte-Timer + Stillstands-Prüfung (Level-Pause)
-  input/inputManager.ts  vereinheitlicht Kamera + Tastatur/Maus → {x, landings[]} pro Spieler
+  input/inputManager.ts  vereinheitlicht Kamera + Tastatur/Maus → {x, landings[]}
   core/                  Partikel (Rapier2D), vfx.ts (Explosion, Rauch, Blitze, Bildschirmblitz), Sound (WebAudio-Synth), Tweens/Effekte, Highscores (localStorage)
   debug.ts               Debug-Overlay
 ```
@@ -206,12 +203,12 @@ Für eine kommerzielle Installation (wie bei Valo Motion) würde man eher so bau
 
 ## Tests & Screenshots
 
-* `npm test` – 93 vitest-Tests (Amboss & Boing-Turbo, Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Spielerzuordnung,
+* `npm test` – vitest (Amboss & Boing-Turbo, Quer-Bohrer, Level-Mischung, Punkte-Pop-ups, Zeit-Blöcke & Rauchdauer, One-Euro-Filter, Sprungautomat inkl. kleiner Hüpfer bei 10/15/30 fps mit Rauschen, Schwanken/Arme heben/Zehenspitzen/Hocke = 0 Sprünge, Hochsprünge, Personenverlust, Mine-Time-Logik, Personenwahl,
   Arme-hoch-Erkennung inkl. Halten, Armschwingen, Springen mit erhobenen Armen bei 30 und 3–4 fps).
 * `node scripts/shots.mjs` – Playwright-Durchlauf per Tastatur gegen `npm run preview`, Screenshots in `shots/`.
 * `node scripts/startcam.mjs` – Startbildschirm mit künstlicher Kamera (Kamera startet ohne Klick, läuft ins Menü weiter).
 * `node scripts/fxshots.mjs` – TNT-Explosion, Bohrer-Blitze und Level-Pause per Tastatur (Screenshots 18–20).
-* `node scripts/timeshots.mjs` – kurzer TNT-Rauch + Zeit-Block-Animation, Timer in der Pause eingefroren (Screenshots 21–22; `PLAYERS=2` für 2 Spieler).
+* `node scripts/timeshots.mjs` – kurzer TNT-Rauch + Zeit-Block-Animation, Timer in der Pause eingefroren (Screenshots 21–22).
 * `node scripts/drillshots.mjs` – Quer-Bohrer und Punkte-Pop-ups per Tastatur (Screenshots 23–24).
 * `node scripts/anvilshots.mjs` – Amboss (Klong/Hochsprung), Boing-Turbo inkl. Pause-Einfrieren, Edelstein-Nahaufnahme (Screenshots 25–27).
 * `node scripts/armscam.mjs` – Level-Pause mit künstlicher Kamera (`Y4M=…`): prüft, ob Arme-hoch weiterschaltet.

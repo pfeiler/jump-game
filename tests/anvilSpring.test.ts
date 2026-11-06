@@ -29,8 +29,8 @@ describe('Wucht-Amboss', () => {
       expect(ev.map((e) => e.type).filter((x) => x !== 'combo')).toEqual(['clank']);
     }
     g.hammerUntil = 100;
-    g.turboUntil[0] = 100;
-    expect(g.hit(3, 20, false, 0).map((e) => e.type).filter((x) => x !== 'combo')).toEqual(['clank']);
+    g.turboUntil = 100;
+    expect(g.hit(3, 20, false).map((e) => e.type).filter((x) => x !== 'combo')).toEqual(['clank']);
     expect(g.get(3, 0)?.kind).toBe('anvil');
     expect(g.get(3, 0)?.hp).toBe(g.get(3, 0)?.maxHp);
     expect(g.score).toBe(score);
@@ -122,27 +122,23 @@ describe('Feder-Block / Boing-Turbo', () => {
   it('spring breaks in one hit and gives that player turbo for 4 s', () => {
     const g = blank();
     g.cells[0][1] = makeBlock('spring');
-    const ev = g.hit(1, 10, false, 1);
-    const t = ev.find((e) => e.type === 'turbo');
-    expect(t && t.type === 'turbo' && t.player).toBe(1);
+    const ev = g.hit(1, 10, false);
+    expect(ev.some((e) => e.type === 'turbo')).toBe(true);
     expect(g.get(1, 0)).toBeNull();
-    expect(g.turboActive(1, 10 + TURBO_DURATION - 0.01)).toBe(true);
-    expect(g.turboActive(1, 10 + TURBO_DURATION + 0.01)).toBe(false);
-    expect(g.turboActive(0, 11)).toBe(false);
+    expect(g.turboActive(10 + TURBO_DURATION - 0.01)).toBe(true);
+    expect(g.turboActive(10 + TURBO_DURATION + 0.01)).toBe(false);
   });
 
-  it('turbo: normal landing = 2 hits, high jump = 3, other player unaffected, expires', () => {
+  it('turbo: normal landing = 2 hits, high jump = 3, expires', () => {
     const g = blank();
     // stone (not dirt) so the count is hits, without the brown-below rider
-    for (const c of [2, 3, 4, 5]) for (let r = 0; r < g.rows; r++) g.cells[r][c] = makeBlock('stone');
-    g.turboUntil[0] = 4;
-    g.hit(2, 1, false, 0); // 2 stone
+    for (const c of [2, 3, 5]) for (let r = 0; r < g.rows; r++) g.cells[r][c] = makeBlock('stone');
+    g.turboUntil = 4;
+    g.hit(2, 1, false); // 2 stone
     expect(g.topRow(2)).toBe(2);
-    g.hit(3, 1.5, true, 0); // 3 stone
+    g.hit(3, 1.5, true); // 3 stone
     expect(g.topRow(3)).toBe(3);
-    g.hit(4, 2, false, 1); // P2: 1
-    expect(g.topRow(4)).toBe(1);
-    g.hit(5, 4.5, false, 0); // expired
+    g.hit(5, 4.5, false); // expired
     expect(g.topRow(5)).toBe(1);
   });
 
@@ -151,21 +147,21 @@ describe('Feder-Block / Boing-Turbo', () => {
     g.cells[0][1] = makeBlock('spring');
     g.cells[0][2] = makeBlock('spring');
     g.cells[0][3] = makeBlock('spring');
-    g.hit(1, 0, false, 0);
-    g.hit(2, 1, false, 0);
-    expect(g.turboUntil[0]).toBeCloseTo(8);
-    g.hit(3, 2, false, 0);
-    expect(g.turboUntil[0]).toBeCloseTo(10); // capped at t + 8
+    g.hit(1, 0, false);
+    g.hit(2, 1, false);
+    expect(g.turboUntil).toBeCloseTo(8);
+    g.hit(3, 2, false);
+    expect(g.turboUntil).toBeCloseTo(10); // capped at t + 8
   });
 
   it('level pause freezes the turbo (shiftTimers)', () => {
     const g = blank();
-    g.turboUntil = [5, 3];
+    g.turboUntil = 5;
     g.hammerUntil = 6;
     g.shiftTimers(4, 10); // paused at t=4 for 10 s
-    expect(g.turboUntil).toEqual([15, 3]); // P2's turbo had already run out
+    expect(g.turboUntil).toBe(15);
     expect(g.hammerUntil).toBe(16);
-    expect(g.turboActive(0, 14)).toBe(true);
+    expect(g.turboActive(14)).toBe(true);
   });
 
   it('spawn rate ≈ 4 %', () => {

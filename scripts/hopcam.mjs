@@ -24,7 +24,7 @@ if (await page.evaluate(() => window.__jump.scene?.name === 'start')) { await pa
 const landings = [];
 await page.exposeFunction('reportLanding', (l) => landings.push(l));
 await page.evaluate(() => {
-  const tp = window.__jump.input.tracked[0];
+  const tp = window.__jump.input.tracked;
   const orig = tp.feed.bind(tp);
   tp.feed = (t, hip, lms) => { const before = tp.pending.length; orig(t, hip, lms); for (const l of tp.pending.slice(before)) window.reportLanding({ at: +(performance.now() / 1000).toFixed(2), T: l.flightTime, h: l.height, high: l.high }); };
 });
@@ -32,7 +32,7 @@ const shotAt = { 2: '11-camera-menu-debug', 6: '12-camera-calibration', 11: '13-
 for (let i = 0; i < 24; i++) {
   await page.waitForTimeout(2000);
   if (shotAt[i]) await page.screenshot({ path: `/tmp/hop-${shotAt[i]}.png` });
-  const st = await page.evaluate(() => ({ scene: window.__jump.scene?.name, cam: { fps: window.__jump.camera?.fps, infer: window.__jump.camera?.inferMs, lat: window.__jump.camera?.latencyMs }, det: { state: window.__jump.input.tracked[0].detector.state, noise: +window.__jump.input.tracked[0].detector.noise.toFixed(4), A: +window.__jump.input.tracked[0].detector.airborneEff.toFixed(3), stats: window.__jump.input.tracked[0].detector.stats, cal: window.__jump.input.tracked[0].detector.isCalibrated, vis: window.__jump.input.tracked[0].visible }, game: window.__jump.scene?.game?.state }));
+  const st = await page.evaluate(() => ({ scene: window.__jump.scene?.name, cam: { fps: window.__jump.camera?.fps, infer: window.__jump.camera?.inferMs, lat: window.__jump.camera?.latencyMs }, det: { state: window.__jump.input.tracked.detector.state, noise: +window.__jump.input.tracked.detector.noise.toFixed(4), A: +window.__jump.input.tracked.detector.airborneEff.toFixed(3), stats: window.__jump.input.tracked.detector.stats, cal: window.__jump.input.tracked.detector.isCalibrated, vis: window.__jump.input.tracked.visible }, game: window.__jump.scene?.game?.state }));
   console.log('t+', (i + 1) * 2, JSON.stringify(st));
   if (i === 13) { await page.keyboard.press('KeyB'); await page.waitForTimeout(100); await page.screenshot({ path: '/tmp/hop-14.png' }); }
 }

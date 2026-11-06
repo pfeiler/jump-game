@@ -16,7 +16,6 @@ export interface GameContext {
   root: Container;
   input: InputManager;
   sfx: Sfx;
-  players: 1 | 2;
   /** shakes the whole screen */
   shake(amount: number): void;
   /** finish the round */
@@ -39,6 +38,5 @@ export interface GameDefinition {
   /** kid-friendly German one-liner for the menu tile */
   subtitle: string;
   color: number;
-  supportsTwoPlayers: boolean;
   create(): GameModule;
 }

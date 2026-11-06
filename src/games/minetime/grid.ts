@@ -12,7 +12,7 @@
  *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
  *  - anvil (Wucht-Amboss): normal landings bounce off ("Klong"), only a high jump smashes it;
  *    it then crashes 2–3 blocks deeper. Never in the exit column, at most one per row.
- *  - spring (Feder-Block): 1 hit, gives that player TURBO for 4 s (landing ×2, high jump ×3).
+ *  - spring (Feder-Block): 1 hit, gives TURBO for 4 s (landing ×2, high jump ×3).
  *  - an exit tile sits in the bottom row; uncovering it finishes the level.
  *  - score only ever goes up (gems + break points × combo, level bonus).
  */
@@ -62,7 +62,7 @@ export type MineEvent =
   | { type: 'time'; col: number; row: number; seconds: number; cause: Cause }
   | { type: 'clank'; col: number; row: number }
   | { type: 'anvil'; col: number; row: number; depth: number }
-  | { type: 'turbo'; player: number; col: number; row: number; until: number }
+  | { type: 'turbo'; col: number; row: number; until: number }
   | { type: 'cavein'; row: number }
   | { type: 'exitReached'; col: number; row: number };
 
@@ -107,10 +107,8 @@ export class MineGrid {
   multiplier = 1;
   lastHitT = -999;
   hammerUntil = -999;
-  /** Boing-Turbo end time per player */
-  turboUntil = [-999, -999];
-  /** player whose landing is being resolved (springs give turbo to them) */
-  private curPlayer = 0;
+  /** Boing-Turbo end time */
+  turboUntil = -999;
   viewTop = 0;
   exitCol = 0;
   exitReached = false;
@@ -136,14 +134,14 @@ export class MineGrid {
     return t < this.hammerUntil;
   }
 
-  turboActive(player: number, t: number): boolean {
-    return t < (this.turboUntil[player] ?? -999);
+  turboActive(t: number): boolean {
+    return t < this.turboUntil;
   }
 
   /** Level pause: timed power-ups (hammer, turbo) don't run out while paused. */
   shiftTimers(pauseStart: number, pausedFor: number): void {
     if (this.hammerUntil > pauseStart) this.hammerUntil += pausedFor;
-    for (let i = 0; i < this.turboUntil.length; i++) if (this.turboUntil[i] > pauseStart) this.turboUntil[i] += pausedFor;
+    if (this.turboUntil > pauseStart) this.turboUntil += pausedFor;
   }
 
   /** Generates a random level; deeper levels have more hard rock and better gems. */
@@ -242,7 +240,7 @@ export class MineGrid {
    * A landing in `col`. `high` = high jump (two hits). Returns all resulting events
    * so the renderer can play effects.
    */
-  hit(col: number, t: number, high = false, player = 0): MineEvent[] {
+  hit(col: number, t: number, high = false): MineEvent[] {
     const ev: MineEvent[] = [];
     if (this.exitReached) return ev;
     col = Math.max(0, Math.min(COLS - 1, col));
@@ -252,8 +250,7 @@ export class MineGrid {
     this.multiplier = comboMultiplier(this.combo);
     ev.push({ type: 'combo', combo: this.combo, multiplier: this.multiplier });
 
-    this.curPlayer = player;
-    const hits = hitsFor(high, this.turboActive(player, t));
+    const hits = hitsFor(high, this.turboActive(t));
     for (let i = 0; i < hits && !this.exitReached; i++) {
       const row = this.topRow(col);
       if (row >= this.rows) { ev.push({ type: 'empty', col }); break; }
@@ -346,9 +343,8 @@ export class MineGrid {
           break;
         }
         case 'spring': {
-          const p = this.curPlayer;
-          this.turboUntil[p] = Math.min(t + TURBO_DURATION * 2, Math.max(t, this.turboUntil[p]) + TURBO_DURATION);
-          ev.push({ type: 'turbo', player: p, col: c, row: r, until: this.turboUntil[p] });
+          this.turboUntil = Math.min(t + TURBO_DURATION * 2, Math.max(t, this.turboUntil) + TURBO_DURATION);
+          ev.push({ type: 'turbo', col: c, row: r, until: this.turboUntil });
           break;
         }
         case 'hammer':
