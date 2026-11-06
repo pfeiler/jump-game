@@ -84,7 +84,7 @@ export class DebugOverlay {
     // stats
     const lines = [
       `FPS ${fps.toFixed(0)}`,
-      cam ? `Kamera: ${cam.status.state} · ${cam.status.mode} · ${cam.status.delegate} · Segmentierung ${cam.status.segmentation ? 'an' : 'aus'}` : 'Kamera: aus (Tastatur)',
+      cam ? `Kamera: ${cam.status.state} · ${cam.status.mode} · ${cam.status.delegate} · Segmentierung ${cam.status.segmentation ? 'an' : 'aus'}` : 'Kamera: aus',
       cam ? `Pose ${cam.fps.toFixed(0)} Hz · Inferenz ${cam.inferMs.toFixed(1)} ms · Latenz Frame→Ergebnis ${cam.latencyMs.toFixed(0)} ms` : '',
       ...this.extra(),
     ].filter(Boolean);

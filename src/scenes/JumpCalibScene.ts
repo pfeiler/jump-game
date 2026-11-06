@@ -115,7 +115,7 @@ export class JumpCalibScene implements Scene {
     this.count.text = this.phase === 'done' ? '✓' : this.phase === 'keyboard' ? '⌨' : `${n}`;
 
     if (this.phase === 'keyboard') {
-      this.msg.text = 'Mit der Tastatur brauchst du das nicht – Leertaste springt immer.';
+      this.msg.text = 'Ohne Kamera können wir deine Sprünge nicht messen.';
       this.detail.text = '';
       this.hint.text = 'Enter = weiter';
       if (this.phaseT > 2.2) this.finish(false);

@@ -23,13 +23,13 @@ npm run preview    # http://localhost:4173/jump-game/
 
 ## Bedienung
 
-| | Kamera | Tastatur / Maus (Fallback) |
+| | Kamera | Tastatur |
 |---|---|---|
-| Spalte wählen | nach links/rechts gehen | ← / → (oder A / D), Maus-X |
-| Sprung (= 1 Schlag) | springen, Landung zählt | Leertaste / W / ↑ |
-| Hochsprung (= doppelter Schlag) | lange Flugzeit (≥ 0,5 s) | Shift + Leertaste / E / ↓ |
-| Menüfeld aktivieren | übers Feld stellen und springen | Enter / Klick |
-| Weiter nach der Level-Pause | beide Arme über den Kopf heben und ~0,65 s halten (nicht springen) | Enter / Leertaste |
+| Spalte wählen | nach links/rechts gehen | – (in der Runde nur Kamera) |
+| Sprung (= 1 Schlag) | springen, Landung zählt | – (in der Runde nur Kamera) |
+| Hochsprung (= doppelter Schlag) | lange Flugzeit (≥ 0,5 s) | – |
+| Menüfeld aktivieren | übers Feld stellen und springen | Enter / Leertaste / Klick |
+| Weiter nach der Level-Pause | beide Arme über den Kopf heben und ~0,65 s halten (nicht springen) | Enter / Leertaste (kein Graben) |
 | Debug-Overlay | – | **B** oder F2 |
 | Ton an/aus | – | M |
 
@@ -37,7 +37,7 @@ Die Kamera wird schon beim Laden der Seite angefragt (dafür ist keine Nutzer-Ge
 zeigt das gespiegelte Live-Bild mit Freisteller und Skelett, den Hinweis „Stell dich so hin, dass du ganz im Bild bist“
 und einen grünen Haken „Du bist im Bild ✓“, sobald Kopf bis Füße zu sehen sind. Kamera und Pose-Tracking laufen
 danach ohne Neustart durch Menü, Kalibrierung und Spiel. Der erste Klick/Tastendruck startet das Spiel (Audio-Freigabe).
-Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis und alles läuft per Tastatur.
+Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinweis. In der Runde graben nur echte Sprünge vor der Kamera – Tasten entfernen keine Blöcke. Menü, Kalibrierung und Namenseingabe bleiben per Tastatur bedienbar.
 
 **Zweite Person:** Die Kamera kann zwei Personen erkennen, gespielt wird aber nur mit einer. Bleibt eine zweite Person im Bild, pausiert das Spiel mit dem Hinweis „Nur eine Person!“ – sie muss den Kamerabereich verlassen. Ist wieder nur eine Person da, geht es von allein weiter. Im Menü und bei der Kalibrierung erscheint derselbe Hinweis; Tastatur und Enter bleiben nutzbar.
 
