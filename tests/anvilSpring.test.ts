@@ -133,10 +133,12 @@ describe('Feder-Block / Boing-Turbo', () => {
 
   it('turbo: normal landing = 2 hits, high jump = 3, other player unaffected, expires', () => {
     const g = blank();
+    // stone (not dirt) so the count is hits, without the brown-below rider
+    for (const c of [2, 3, 4, 5]) for (let r = 0; r < g.rows; r++) g.cells[r][c] = makeBlock('stone');
     g.turboUntil[0] = 4;
-    g.hit(2, 1, false, 0); // 2 dirt
+    g.hit(2, 1, false, 0); // 2 stone
     expect(g.topRow(2)).toBe(2);
-    g.hit(3, 1.5, true, 0); // 3 dirt
+    g.hit(3, 1.5, true, 0); // 3 stone
     expect(g.topRow(3)).toBe(3);
     g.hit(4, 2, false, 1); // P2: 1
     expect(g.topRow(4)).toBe(1);

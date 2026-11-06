@@ -57,8 +57,8 @@ Ist die Kamera verweigert oder nicht vorhanden, erscheint ein freundlicher Hinwe
 
 ## Mine Time
 
-* 6 Spalten, 8 sichtbare Reihen; das Feld scrollt mit, wenn man tiefer gräbt.
-* Erde (1 Schlag), Stein (2), Hartgestein (3) – mit sichtbaren Rissen.
+* 6 Spalten, 8 sichtbare Reihen; die oberste Reihe ist frei (Luft), und beim Graben bleibt eine Reihe Luft über den Blöcken. Das Feld scrollt mit, wenn man tiefer gräbt.
+* Braune Erde: ein halber Sprung (normaler Hüpfer) bricht sie und die braune Erde direkt darunter. Grauer Stein: 1 normaler Sprung (kein Hochsprung nötig). Hartgestein: 3 – mit sichtbaren Rissen.
 * Edelsteine werden mit der Tiefe wertvoller; Diamanten gibt es schon ab Level 1. Beim Einsammeln poppt der Punktewert kurz in der Farbe des Steins auf. Jede Sorte hat eine eigene Schliff-Form (auch ohne Farben unterscheidbar): Smaragd = Achteck-Treppenschliff, Saphir = runder Brillant, Rubin = Dreieck, Diamant = weiß-blauer Brillant mit Regenbogen-Funkeln und Schein; zufällige Glitzer-Sterne lassen sichtbare Steine funkeln
   (0,7 s, schwebt hoch und blendet aus; bei bis zu 3 Steinen gleichzeitig einzeln und leicht versetzt, bei mehr – TNT, Bohrer, Magnet – ein gemeinsames „+210 (6×)“).
 * Mischung pro Feld (Level 1 → 5): Edelsteine ≈ 19 → 28 %, Stein ≈ 14 %, Hartgestein ≈ 7 → 22 %, Rest Erde, Bomben, Power-ups, Zeit-Blöcke.

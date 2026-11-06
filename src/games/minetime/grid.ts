@@ -2,10 +2,13 @@
  * Mine Time – pure game logic (no rendering), fully unit-tested.
  *
  * Our own rule design (official ValoJump rules are not public):
- *  - 6 columns, 8 visible rows; each landing hits the top-most block of the
- *    column the player stands in, a high jump hits twice.
- *  - dirt 1 hit, stone 2, hard rock 3, gems (points scale with depth/level),
- *    bomb (clears 1-tile radius, chains), power-ups: drill (column), cross drill (row), hammer, magnet.
+ *  - 6 columns, 8 visible rows; the uppermost row is open air and the view keeps
+ *    one air row above the blocks. Each landing hits the top-most block of the
+ *    column the player stands in. A normal/half jump is one hit, a high jump hits twice.
+ *  - brown dirt: a normal hop breaks it and, if the block directly underneath is
+ *    also brown dirt, that one too. Gray stone: one normal hop. Hard rock: 3.
+ *    Gems (points scale with depth/level), bomb (clears 1-tile radius, chains),
+ *    power-ups: drill (column), cross drill (row), hammer, magnet.
  *  - time blocks (clock): +TIME_BONUS seconds on the countdown, 2–3 per level.
  *  - anvil (Wucht-Amboss): normal landings bounce off ("Klong"), only a high jump smashes it;
  *    it then crashes 2–3 blocks deeper. Never in the exit column, at most one per row.
@@ -23,8 +26,10 @@ export const COMBO_WINDOW = 1.6;
 export const TIME_BONUS = 5;
 /** Boing-Turbo duration (s) */
 export const TURBO_DURATION = 4;
-/** hits per landing: normal 1, high 2; with turbo normal 2, high 3 */
+/** hits per landing: normal/half jump 1, high 2; with turbo normal 2, high 3 */
 export const hitsFor = (high: boolean, turbo: boolean): number => (turbo ? (high ? 3 : 2) : high ? 2 : 1);
+/** open rows kept above the highest block so the top of the playfield stays air */
+export const SKY_ROWS = 1;
 /** time blocks per level: 2 in the first two levels, 3 from level 3 (deeper levels take longer) */
 export const timeBlocksFor = (level: number): number => (level >= 3 ? 3 : 2);
 
@@ -83,7 +88,8 @@ export const levelRows = (level: number): number => Math.min(22, 10 + 2 * level)
 export const levelBonus = (level: number): number => 100 * level;
 
 export function makeBlock(kind: BlockKind, extra: Partial<Block> = {}): Block {
-  const hp = kind === 'stone' ? 2 : kind === 'hard' ? 3 : 1;
+  // gray stone breaks on one normal jump; only hard rock still needs several hits
+  const hp = kind === 'hard' ? 3 : 1;
   return { kind, hp, maxHp: hp, ...extra };
 }
 
@@ -147,6 +153,12 @@ export class MineGrid {
     let powerups = 0;
     for (let row = 0; row < this.rows; row++) {
       const line: (Block | null)[] = [];
+      // uppermost row is open air: more room at the top of the screen. The exit
+      // stays on the bottom row (levels are always taller than one row).
+      if (row === 0 && row !== this.exitRow) {
+        this.cells.push(Array.from({ length: COLS }, () => null));
+        continue;
+      }
       const d = row / this.rows;
       for (let col = 0; col < COLS; col++) {
         if (row === this.exitRow && col === this.exitCol) {
@@ -246,8 +258,17 @@ export class MineGrid {
       if (b.kind === 'anvil' && !high) { ev.push({ type: 'clank', col, row }); break; }
       const dmg = this.hammerActive(t) ? 2 : 1;
       b.hp -= dmg;
-      if (b.hp <= 0) this.destroy(col, row, 'hit', t, ev);
-      else ev.push({ type: 'damage', col, row, block: b });
+      if (b.hp <= 0) {
+        const kind = b.kind;
+        this.destroy(col, row, 'hit', t, ev);
+        // Brown dirt, normal/half jump only: also break the brown block directly
+        // underneath. Anything else (stone, gem, anvil, …) stays. One block, no
+        // cascade. High jumps stay pure multi-hits so anvils and hit counts don't shift.
+        if (!high && kind === 'dirt') {
+          const below = this.cells[row + 1]?.[col];
+          if (below?.kind === 'dirt') this.destroy(col, row + 1, 'hit', t, ev);
+        }
+      } else ev.push({ type: 'damage', col, row, block: b });
       this.checkExit(ev);
     }
     if (!this.exitReached) this.settle(ev, t);
@@ -349,11 +370,11 @@ export class MineGrid {
     }
   }
 
-  /** Scrolls the view: cleared top rows scroll away; if a column is dug out of
-   *  view the top row caves in so there is always something to hit. */
+  /** Scrolls the view: one row of air stays above the blocks. If a column is dug
+   *  out of view the ceiling caves in so there is always something to hit. */
   private settle(ev: MineEvent[], t: number): void {
     const maxTop = Math.max(0, this.rows - VISIBLE_ROWS);
-    for (;;) {
+    for (let guard = 0; guard < this.rows + 2; guard++) {
       let minTop = this.rows;
       let deepest = 0;
       for (let c = 0; c < COLS; c++) {
@@ -361,13 +382,18 @@ export class MineGrid {
         minTop = Math.min(minTop, tr);
         deepest = Math.max(deepest, tr);
       }
-      const target = Math.min(maxTop, Math.max(this.viewTop, minTop));
+      const target = Math.min(maxTop, Math.max(this.viewTop, minTop - SKY_ROWS));
       if (target > this.viewTop) { this.viewTop = target; continue; }
       if (deepest >= this.viewTop + VISIBLE_ROWS && this.viewTop < maxTop) {
-        const row = this.viewTop;
+        // collapse the first row that still has blocks (skip the empty sky)
+        const limit = Math.min(this.rows, this.viewTop + VISIBLE_ROWS);
+        let row = this.viewTop;
+        while (row < limit && !this.cells[row].some((b) => b)) row++;
+        if (row >= limit) { this.viewTop++; continue; }
         ev.push({ type: 'cavein', row });
         for (let c = 0; c < COLS; c++) if (this.cells[row][c]) this.destroy(c, row, 'cavein', t, ev);
-        this.viewTop++;
+        // advance at least one row; keep a row of air above the new ceiling when it fits
+        this.viewTop = Math.min(maxTop, Math.max(this.viewTop + 1, row + 1 - SKY_ROWS));
         continue;
       }
       break;
