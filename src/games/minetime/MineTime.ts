@@ -460,6 +460,8 @@ export class MineTime implements GameModule {
 
   /** Pause between levels: shows the result and waits for "both arms up" (or Enter/Space). */
   private pauseStartedAt = 0;
+  /** performance time when a second person froze the round, or null */
+  private crowdHold: number | null = null;
   private showPause(): void {
     this.pauseStartedAt = performance.now() / 1000;
     const done = this.grid.level;
@@ -569,13 +571,21 @@ export class MineTime implements GameModule {
   update(dt: number): void {
     this.t += dt;
     const now = performance.now() / 1000;
+    const crowd = this.ctx.input.crowd;
+    if (crowd) this.crowdHold ??= now;
+    else if (this.crowdHold !== null) {
+      // level pause already freezes turbo/hammer until it ends
+      if (!this.pause) this.grid.shiftTimers(this.crowdHold, now - this.crowdHold);
+      this.crowdHold = null;
+    }
+    const clock = this.crowdHold ?? now;
     this.tw.update(dt);
     if (this.destroyed) return;
     this.particles.update(dt);
     this.vfx.update(dt);
-    if (this.pause) this.updatePause(dt, now);
+    if (this.pause) this.updatePause(dt, clock);
 
-    if (!this.ended && !this.advancing) {
+    if (!this.ended && !this.advancing && !crowd) {
       this.timeLeft = Math.max(0, this.timeLeft - dt);
       const sec = Math.ceil(this.timeLeft);
       if (sec <= 10 && sec !== this.lastTick && sec > 0) { this.lastTick = sec; this.ctx.sfx.tick(); }
@@ -583,8 +593,8 @@ export class MineTime implements GameModule {
     }
 
     const p = this.ctx.input.poll()[0];
-    this.col = this.colFor(p.x);
-    if (!this.ended && !this.advancing) {
+    if (!crowd) this.col = this.colFor(p.x);
+    if (!this.ended && !this.advancing && !crowd) {
       for (const land of p.landings) {
         this.hits++;
         if (land.high) this.highJumps++;
@@ -635,7 +645,7 @@ export class MineTime implements GameModule {
     this.levelText.text = `Level ${g.level} · Tiefe ${g.depth * 2 + 2} m`;
     const comboActive = now - g.lastHitT < 1.6 && g.combo >= 2;
     this.comboText.text = comboActive ? `Combo ${g.combo}${g.multiplier > 1 ? `  x${g.multiplier}` : ''}` : '';
-    const hammer = g.hammerUntil - now;
+    const hammer = g.hammerUntil - (this.pause ? this.pauseStartedAt : clock);
     this.hammerText.text = hammer > 0 ? `HAMMER ${Math.ceil(hammer)}s` : '';
     if (hammer > 0) this.hammerText.alpha = hammer < 2 ? pulse : 1;
     void HAMMER_DURATION;
@@ -643,7 +653,7 @@ export class MineTime implements GameModule {
 
   /** Boing-Turbo on the player marker: pink aura, springy bounce, countdown ring and a sparkle trail. */
   private updateTurbo(dt: number, now: number): void {
-    const ref = this.pause ? this.pauseStartedAt : now; // frozen during the level pause
+    const ref = this.pause ? this.pauseStartedAt : (this.crowdHold ?? now); // frozen during level pause or a second person
     this.trailT += dt;
     const emit = this.trailT > 0.06;
     if (emit) this.trailT = 0;
@@ -716,7 +726,7 @@ export class MineTime implements GameModule {
   get state() {
     return {
       score: this.grid.score, level: this.grid.level, viewTop: this.grid.viewTop, timeLeft: this.timeLeft, col: this.col,
-      clocks: this.grid.clocks, turboUntil: this.grid.turboUntil, turboLeft: Math.max(0, this.grid.turboUntil - (this.pause ? this.pauseStartedAt : performance.now() / 1000)), timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
+      clocks: this.grid.clocks, turboUntil: this.grid.turboUntil, turboLeft: Math.max(0, this.grid.turboUntil - (this.pause ? this.pauseStartedAt : this.crowdHold ?? performance.now() / 1000)), timeBonus: this.grid.timeBonus, timeFlash: this.timeFlash,
       paused: !!this.pause, pauseProgress: this.pause?.hold.progress ?? 0, vfx: { ...this.vfx.stats, active: this.vfx.active },
     };
   }

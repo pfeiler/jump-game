@@ -4,6 +4,7 @@
  */
 import { FilesetResolver, PoseLandmarker, type PoseLandmarkerResult } from '@mediapipe/tasks-vision';
 import type { Landmark, PoseOptions } from './types';
+import { POSE_SLOTS } from '../crowd';
 
 export class PoseEngine {
   landmarker!: PoseLandmarker;
@@ -17,7 +18,7 @@ export class PoseEngine {
       PoseLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: opts.modelUrl, delegate },
         runningMode: 'VIDEO',
-        numPoses: 1,
+        numPoses: POSE_SLOTS,
         minPoseDetectionConfidence: 0.5,
         minPosePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,

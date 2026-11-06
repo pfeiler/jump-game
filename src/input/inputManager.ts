@@ -1,6 +1,7 @@
 import { CameraTracker } from './camera';
 import { TrackedPlayer, assignPoses, hipFromPose, type HipSample } from './players';
 import { heightFromFlightTime, sensitivityConfig, type JumpConfig, type LandingEvent } from './jumpDetector';
+import { idleCrowd, stepCrowd, visiblePeople, type CrowdClock } from './crowd';
 
 export interface PlayerInput {
   id: number;
@@ -32,6 +33,9 @@ export class InputManager {
   keyListeners = new Set<(e: KeyboardEvent) => void>();
   /** when true, game keys (space/arrows) are not interpreted as jumps (name entry) */
   textMode = false;
+  /** bodies currently visible (0–2). Not a player count. */
+  peopleInFrame = 0;
+  private crowdState: CrowdClock = idleCrowd();
 
   constructor(cfg: Partial<JumpConfig>) {
     this.tracked = new TrackedPlayer(cfg);
@@ -48,6 +52,11 @@ export class InputManager {
     return this.camera?.status.state === 'running';
   }
 
+  /** A second person has been in frame long enough that play should wait. */
+  get crowd(): boolean {
+    return this.crowdState.crowd;
+  }
+
   private lastResultT = -1;
 
   attachCamera(cam: CameraTracker): void {
@@ -59,11 +68,18 @@ export class InputManager {
       const t = Math.max(cap / 1000, this.lastResultT + 0.001);
       this.lastResultT = t;
       const hips: HipSample[] = r.poses.map((p) => hipFromPose(p, cam.aspect));
+      this.notePeople(visiblePeople(hips), t);
       const prev = this.prevX !== null && this.tracked.visible ? this.tracked.rawX : null;
       const k = assignPoses(hips, prev);
       this.tracked.feed(t, k !== null ? hips[k] : null, k !== null ? r.poses[k] : null);
       this.prevX = k !== null ? hips[k].x : null;
     };
+  }
+
+  /** Update the second-person pause from how many bodies are visible. */
+  notePeople(count: number, t: number): void {
+    this.peopleInFrame = count;
+    this.crowdState = stepCrowd(this.crowdState, count, t);
   }
 
   private synth(high: boolean): void {
@@ -108,7 +124,9 @@ export class InputManager {
     const camActive = this.cameraRunning && tp.visible;
     const kbRecent = now - this.lastKbT < 3;
     const useCam = camActive && !kbRecent;
-    const landings = [...this.kbEvents, ...(this.cameraRunning ? tp.pending : [])];
+    // a second person must not land a camera jump; keyboard input still comes through
+    const camLandings = this.cameraRunning && !this.crowd ? tp.pending : [];
+    const landings = [...this.kbEvents, ...camLandings];
     this.kbEvents = [];
     tp.pending = [];
     return [{
@@ -130,7 +148,7 @@ export class InputManager {
 
   /** Camera landings only; keyboard jumps are discarded. */
   takeCameraLandings(): LandingEvent[] {
-    const ev = [...this.tracked.pending];
+    const ev = this.crowd ? [] : [...this.tracked.pending];
     this.tracked.pending = [];
     this.kbEvents = [];
     return ev;

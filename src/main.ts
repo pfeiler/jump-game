@@ -9,6 +9,7 @@ import { CameraTracker } from './input/camera';
 import { Sfx } from './core/audio';
 import { initPhysics } from './core/particles';
 import { DebugOverlay } from './debug';
+import { label } from './core/fx';
 import type { Scene } from './scenes/types';
 import { StartScene } from './scenes/StartScene';
 import { MenuScene } from './scenes/MenuScene';
@@ -38,6 +39,7 @@ class App {
   private fps = 60;
   private cameraMsg = '';
   cameraFailed = false;
+  private crowdLayer = new Container();
 
   async init(): Promise<void> {
     await this.pixi.init({
@@ -56,10 +58,11 @@ class App {
     // a few "cave crystals" in the background
     for (let i = 0; i < 40; i++) bg.circle(Math.random() * W, Math.random() * H, 1 + Math.random() * 2.5).fill({ color: 0xffffff, alpha: 0.15 + Math.random() * 0.3 });
     this.stage.addChild(bg, this.sceneLayer);
+    this.buildCrowdLayer();
     this.pixi.stage.addChild(this.stage);
 
     this.debug = new DebugOverlay(this.input, () => this.layoutRect());
-    this.debug.extra = () => [`Szene: ${this.scene?.name ?? '-'}`];
+    this.debug.extra = () => [`Szene: ${this.scene?.name ?? '-'}`, `Personen im Bild: ${this.input.peopleInFrame}`];
     if (params.get('debug') === '1') this.debug.toggle();
     window.addEventListener('keydown', (e) => {
       if (e.code === 'F2' || (e.code === 'KeyB' && !this.input.textMode)) this.debug.toggle();
@@ -192,6 +195,20 @@ class App {
     this.setScene(new EndScene(def.id, r, this.input, this.sfx, () => this.goMenu()));
   }
 
+  /** Full-screen notice. It does not catch clicks, so menus stay usable from the keyboard. */
+  private buildCrowdLayer(): void {
+    const dim = new Graphics().rect(0, 0, W, H).fill({ color: 0x0b0618, alpha: 0.72 });
+    const panel = new Graphics().roundRect(160, 180, W - 320, 360, 32).fill({ color: 0x24143f, alpha: 0.96 }).stroke({ width: 6, color: 0xffe66b });
+    const title = label('Nur eine Person!', 64, 0xffe66b);
+    title.position.set(W / 2, 270);
+    const body = label('Eine zweite Person ist im Bild.\nBitte geh aus dem Kamerabereich.\nSobald nur noch eine Person zu sehen ist, geht es von allein weiter.', 32, 0xffffff, { wordWrap: true, wordWrapWidth: 860 });
+    body.position.set(W / 2, 420);
+    this.crowdLayer.addChild(dim, panel, title, body);
+    this.crowdLayer.visible = false;
+    this.crowdLayer.eventMode = 'none';
+    this.stage.addChild(this.crowdLayer);
+  }
+
   shake(a: number): void {
     this.shakeAmt = Math.min(30, Math.max(this.shakeAmt, a));
   }
@@ -227,6 +244,7 @@ class App {
     } catch (e) {
       if (sc === this.scene) console.error('[scene]', e);
     }
+    this.crowdLayer.visible = this.input.crowd;
     this.debug.draw(this.fps);
   }
 }
