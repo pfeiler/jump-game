@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MineGrid, makeBlock, COLS, VISIBLE_ROWS, SKY_ROWS, levelBonus, comboMultiplier, type Block, type BlockKind, type MineEvent } from '../src/games/minetime/grid';
+import { MineGrid, makeBlock, COLS, VISIBLE_ROWS, SKY_ROWS, MAGNET_RADIUS, levelBonus, comboMultiplier, type Block, type BlockKind, type MineEvent } from '../src/games/minetime/grid';
 
 /** grid filled with dirt (or a custom fill) so tests are deterministic */
 function blank(rows = 12, fill: () => Block | null = () => makeBlock('dirt')): MineGrid {
@@ -187,18 +187,30 @@ describe('MineGrid', () => {
     expect(g.get(2, 0)?.hp).toBe(2);
   });
 
-  it('magnet collects all visible gems', () => {
+  it('magnet collects only gems in a 1-cell radius, not the board', () => {
     const g = blank(12);
-    g.cells[0][0] = makeBlock('magnet');
-    g.cells[3][2] = makeBlock('gem', { gemType: 1, gemValue: 20 });
-    g.cells[7][5] = makeBlock('gem', { gemType: 3, gemValue: 60 });
-    g.cells[10][4] = makeBlock('gem', { gemType: 0, gemValue: 10 }); // not visible
-    const ev = g.hit(0, 0);
-    const gems = ev.filter((e) => e.type === 'gem');
-    expect(gems).toHaveLength(2);
+    g.cells[2][2] = makeBlock('magnet');
+    g.cells[0][2] = null;
+    g.cells[1][2] = null; // so the landing hits the magnet
+    g.cells[2][3] = makeBlock('gem', { gemType: 1, gemValue: 20 }); // orthogonal neighbour
+    g.cells[3][1] = makeBlock('gem', { gemType: 2, gemValue: 35 }); // diagonal neighbour
+    g.cells[1][3] = makeBlock('stone'); // inside the square, but not a gem
+    g.cells[3][2] = makeBlock('hard'); // directly below, not a gem
+    g.cells[2][0] = makeBlock('gem', { gemType: 0, gemValue: 10 }); // two columns away
+    g.cells[4][2] = makeBlock('gem', { gemType: 3, gemValue: 60 }); // two rows below
+    g.cells[7][5] = makeBlock('gem', { gemType: 3, gemValue: 60 }); // far, still on screen
+    const ev = g.hit(2, 0);
+    const gems = ev.filter((e) => e.type === 'gem') as Extract<MineEvent, { type: 'gem' }>[];
+    expect(MAGNET_RADIUS).toBe(1);
+    expect(gems.map((e) => [e.col, e.row]).sort()).toEqual([[1, 3], [3, 2]]);
     expect(g.gems).toBe(2);
-    expect(g.get(4, 10)?.kind).toBe('gem');
-    expect(g.score).toBe(5 + 20 + 60);
+    expect(g.get(0, 2)?.kind).toBe('gem');
+    expect(g.get(2, 4)?.kind).toBe('gem');
+    expect(g.get(3, 1)?.kind).toBe('stone');
+    expect(g.get(2, 3)?.kind).toBe('hard');
+    expect(g.get(1, 2)?.kind).toBe('dirt');
+    expect(g.get(5, 7)?.kind).toBe('gem');
+    expect(g.score).toBe(5 + 20 + 35);
   });
 
   it('gem points go to the score, combo multiplies, never deducts', () => {
