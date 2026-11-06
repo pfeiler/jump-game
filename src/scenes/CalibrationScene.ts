@@ -27,7 +27,13 @@ export class CalibrationScene implements Scene {
   private lastSec = 4;
   private readonly camera: boolean;
 
-  constructor(private input: InputManager, private sfx: Sfx, private players: 1 | 2, private onDone: () => void) {
+  constructor(
+    private input: InputManager,
+    private sfx: Sfx,
+    private players: 1 | 2,
+    private onDone: () => void,
+    private onJumpCalib?: () => void,
+  ) {
     this.camera = input.cameraRunning;
     const title = label(this.camera ? 'Kurz stillstehen!' : 'Tastatur-Modus', 72, 0xffe66b);
     title.position.set(W / 2, 80);
@@ -48,7 +54,7 @@ export class CalibrationScene implements Scene {
         ? '←/→ oder Maus = Spalte wählen · Leertaste = Landung (1 Treffer) · Shift+Leertaste = Hochsprung (2 Treffer)'
         : 'Spieler 1: A/D bewegen, W springen, E Hochsprung · Spieler 2: ←/→ bewegen, ↑ springen, ↓ Hochsprung';
     }
-    const skip = label('Enter = überspringen', 20, 0xc8c0e0, { fontWeight: '600' });
+    const skip = label(this.camera && this.onJumpCalib ? 'Enter = überspringen · C = Sprünge kalibrieren' : 'Enter = überspringen', 20, 0xc8c0e0, { fontWeight: '600' });
     skip.position.set(W / 2, H - 30);
     this.container.addChild(skip);
     input.keyListeners.add(this.onKey);
@@ -56,6 +62,10 @@ export class CalibrationScene implements Scene {
   }
 
   private onKey = (e: KeyboardEvent) => {
+    if (e.code === 'KeyC' && this.camera && this.onJumpCalib && !this.finished) {
+      this.onJumpCalib();
+      return;
+    }
     if (e.code === 'Enter') this.finish();
   };
 
